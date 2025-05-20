@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../context/AuthContext'; // <-- IMPORTA useAuth
 
 // Asegúrate que esta URL sea correcta y accesible desde tu dispositivo/emulador
-const STRAPI_BACKEND_URL = 'https://6544-200-127-6-159.ngrok-free.app ';
+const STRAPI_BACKEND_URL = 'https://a1f3-200-127-6-159.ngrok-free.app';
 
 const RegisterScreen = () => {
   const router = useRouter();
@@ -225,7 +225,7 @@ const RegisterScreen = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-   backgroundColor: '#f3f4f6', // bg-gray-100
+    backgroundColor: '#142986',
   },
   scrollView: {
     flex: 1,

@@ -7,14 +7,14 @@ import {
 // Asegúrate de importar PlayerStat, Category y Team si no lo hiciste ya en AuthContext
 import { useAuth, User, PlayerStat, Category, Team as TeamInterface } from '../../context/AuthContext';
 
-const STRAPI_BACKEND_URL = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://6544-200-127-6-159.ngrok-free.app ';
+const STRAPI_BACKEND_URL = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://a1f3-200-127-6-159.ngrok-free.app';
 
 export interface RankingEntry {
   id: number | string;
   position: number;
   name: string;
   points: number;
-  wins?: number; // <--- NUEVO CAMPO: Partidos Ganados
+  wins?: number; 
   players?: string[];
   categoryName?: string;
 }
@@ -185,7 +185,7 @@ const RankingScreen = () => {
         <View style={styles.tableHeader}>
           <Text style={[styles.headerCell, styles.positionCell]}>Pos.</Text>
           <Text style={[styles.headerCell, styles.nameCell]}>{nameHeaderText}</Text>
-          <Text style={[styles.headerCell, styles.winsCell]}>PG</Text> {/* <--- NUEVA CABECERA */}
+          <Text style={[styles.headerCell, styles.winsCell]}>PG</Text> 
           <Text style={[styles.headerCell, styles.pointsCell]}>Puntos</Text>
         </View>
         {rankingData[category] && rankingData[category].length > 0 ? (
@@ -198,7 +198,7 @@ const RankingScreen = () => {
                   <Text style={styles.teamPlayersText} numberOfLines={1} ellipsizeMode="tail">({entry.players.join(' / ')})</Text>
                 )}
               </View>
-              <Text style={[styles.rowCell, styles.winsCell]}>{entry.wins}</Text> {/* <--- NUEVA CELDA DE DATOS */}
+              <Text style={[styles.rowCell, styles.winsCell]}>{entry.wins}</Text> 
               <Text style={[styles.rowCell, styles.pointsCell]}>{entry.points}</Text>
             </View>
           ))
@@ -240,7 +240,7 @@ const RankingScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: 'transparent' },
+  safeArea: { flex: 1,  backgroundColor: '#142986' },
   scrollViewContainer: { flex: 1 },
   container: { paddingVertical: 20, paddingHorizontal: Platform.OS === 'web' ? 32 : 16 },
   loader: { marginTop: 50, alignSelf: 'center' },

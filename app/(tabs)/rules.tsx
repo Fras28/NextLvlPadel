@@ -80,7 +80,7 @@ const RulesScreen = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f3f4f6', // bg-gray-100
+    backgroundColor: '#142986',
   },
   scrollViewContainer: {
     flex: 1,
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: 'bold',
     marginBottom: 28,
-    color: '#1f2937', // text-gray-800
+    color: 'white', // text-gray-800
     textAlign: 'center',
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },

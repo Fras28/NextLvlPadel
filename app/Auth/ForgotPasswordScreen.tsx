@@ -96,7 +96,7 @@ const ForgotPasswordScreen = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f3f4f6', // bg-gray-100
+    backgroundColor: '#142986',
   },
   keyboardAvoiding: {
     flex: 1,

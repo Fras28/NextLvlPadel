@@ -6,9 +6,9 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
-import { useAuth } from '../../context/AuthContext'; // Ajusta la ruta
+import { useAuth, User, Team } from '../../context/AuthContext'; // Importar Team si es necesario
 
-// --- Lógica de Categorías y Puntos ---
+// --- Lógica de Categorías y Puntos (sin cambios) ---
 const categoryPointThresholds: Record<string, { start: number; next: number }> = {
   '7ma': { start: 0, next: 500 }, '6ta': { start: 500, next: 1000 },
   '5ta': { start: 1000, next: 1500 }, '4ta': { start: 1500, next: 2000 },
@@ -44,11 +44,11 @@ const getCurrentCategoryProgress = (userCatPoints: number | null | undefined, us
 };
 // --- Fin de Lógica de Ejemplo ---
 
-interface CircularProgressProps { /* ... (sin cambios) ... */
+interface CircularProgressProps {
   size: number; strokeWidth: number; progressPercent: number;
   backgroundColor?: string; progressColor?: string; children?: React.ReactNode;
 }
-const CircularProgress: React.FC<CircularProgressProps> = ({ /* ... */
+const CircularProgress: React.FC<CircularProgressProps> = ({
   size, strokeWidth, progressPercent,
   backgroundColor = "#e0e0e0", progressColor = "#0284c7", children,
 }) => {
@@ -79,18 +79,31 @@ const ProfileScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      if (user && fetchAndUpdateUser) { // Solo llama si ya hay un usuario para evitar llamadas mientras se carga inicialmente
-        // console.log("[ProfileScreen] Screen focused, calling fetchAndUpdateUser.");
-        fetchAndUpdateUser().catch(err => console.error("Error in fetchAndUpdateUser on focus:", err));
+      let isActive = true;
+      if (fetchAndUpdateUser) { // No depender de 'user' aquí para evitar bucles
+        console.log("[ProfileScreen] Screen focused, calling fetchAndUpdateUser.");
+        fetchAndUpdateUser().catch(err => {
+            if (isActive) {
+                console.error("[ProfileScreen] Error in fetchAndUpdateUser on focus:", err.message);
+            }
+        });
       }
-    }, [fetchAndUpdateUser, user?.id]) // Depender del user.id para rehacer el callback si el usuario cambia
+      return () => {
+        isActive = false;
+      };
+    }, [fetchAndUpdateUser]) // Depender solo de fetchAndUpdateUser
   );
 
   const onRefresh = useCallback(async () => {
     if (fetchAndUpdateUser) {
       setIsRefreshing(true);
-      await fetchAndUpdateUser();
-      setIsRefreshing(false);
+      try {
+        await fetchAndUpdateUser();
+      } catch (error) {
+        console.error("Error during refresh:", error)
+      } finally {
+        setIsRefreshing(false);
+      }
     }
   }, [fetchAndUpdateUser]);
 
@@ -99,34 +112,47 @@ const ProfileScreen = () => {
     catch (e) { console.error("Logout error:", e); Alert.alert("Error", "No se pudo cerrar sesión."); }
   };
 
-  // Acceso a datos DIRECTO desde el objeto 'user' populado
   const displayName = user?.name || user?.username || 'Usuario';
   const displayEmail = user?.email || 'No disponible';
   
-  // Acceder a los campos de las relaciones que ahora son objetos directos en 'user'
   const userCategoryPoints = user?.player_stat?.categoryPoints;
-  const userCategoryNameFromContext = user?.category?.name; // Asume que 'user.category' es el objeto Category completo
+  const userCategoryNameFromContext = user?.category?.name;
   
   let profilePictureUrl = null;
-  if (user?.profilePicture?.url) { // Acceso directo a la URL de la imagen de perfil
-    const strapiBaseUrl = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://6544-200-127-6-159.ngrok-free.app '; // Reemplaza localhost si es necesario
+  if (user?.profilePicture?.url) {
+    const strapiBaseUrl = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://a1f3-200-127-6-159.ngrok-free.app';
     profilePictureUrl = `${strapiBaseUrl}${user.profilePicture.url}`;
   }
 
   const { progress, pointsToNext, categoryDisplayName, nextCategoryPoints } = 
     getCurrentCategoryProgress(userCategoryPoints, userCategoryNameFromContext);
 
+  // Procesar equipos del usuario para mostrar, asegurando unicidad por documentId o id
+  const userTeamsUnique = user?.teams 
+    ? user.teams.reduce((acc, currentTeam) => {
+        const key = currentTeam.documentId || String(currentTeam.id); // Usa documentId si existe, sino id
+        if (!acc.some(item => (item.documentId || String(item.id)) === key)) {
+          acc.push(currentTeam);
+        }
+        return acc;
+      }, [] as Team[]) // Asegurar el tipo del acumulador importando Team de AuthContext
+    : [];
+
+  const userTeamsDisplay = userTeamsUnique.length > 0
+    ? userTeamsUnique.map(team => team.name || `Equipo ${team.id}`).join(', ')
+    : 'Sin equipos asignados';
+
   const avatarSize = 100;
   const progressStrokeWidth = 8;
 
-  if (authIsLoading && !user) { // Mostrar loader solo si el usuario aún no se ha cargado en absoluto desde AsyncStorage
+  if (authIsLoading && !user && !isRefreshing) {
     return (
       <SafeAreaView style={[styles.safeArea, styles.loadingContainer]}>
         <ActivityIndicator size="large" color="#0284c7" />
       </SafeAreaView>
     );
   }
-  if (!user) { // Si después de cargar, no hay usuario (ej. token inválido y signOut fue llamado)
+  if (!user) {
     return (
       <SafeAreaView style={[styles.safeArea, styles.loadingContainer]}>
         <Text style={styles.infoLabel}>No hay sesión activa.</Text>
@@ -137,7 +163,6 @@ const ProfileScreen = () => {
     );
   }
 
-  // Si llegamos aquí, 'user' no es null
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView 
@@ -174,12 +199,12 @@ const ProfileScreen = () => {
         </View>
 
         <View style={styles.infoSection}>
+          <InfoRow label="Equipos" value={userTeamsDisplay} />
           <InfoRow label="Categoría Actual" value={categoryDisplayName} />
           <InfoRow label="Puntos Ranking" value={userCategoryPoints !== undefined && userCategoryPoints !== null ? String(userCategoryPoints) : 'N/A'} />
-          {/* Acceso directo a los campos de player_stat */}
-          <InfoRow label="Partidos Jugados" value={String(user.player_stat?.totalMatches || 0)} />
-          <InfoRow label="Partidos Ganados" value={String(user.player_stat?.wins || 0)} />
-          <InfoRow label="Partidos Perdidos" value={String(user.player_stat?.losses || 0)} />
+          <InfoRow label="Partidos Jugados" value={String(user?.player_stat?.totalMatches || 0)} />
+          <InfoRow label="Partidos Ganados" value={String(user?.player_stat?.wins || 0)} />
+          <InfoRow label="Partidos Perdidos" value={String(user?.player_stat?.losses || 0)} />
           <InfoRow label="Miembro Desde" value={user.createdAt ? new Date(user.createdAt).toLocaleDateString('es-ES') : 'N/A'} />
         </View>
 
@@ -195,12 +220,16 @@ const ProfileScreen = () => {
   );
 };
 
-const InfoRow = ({ label, value }: { label: string, value: string | number }) => (
-  <View style={styles.infoRow}><Text style={styles.infoLabel}>{label}</Text><Text style={styles.infoValue}>{value}</Text></View>
+const InfoRow = ({ label, value }: { label: string, value: string | number | undefined}) => (
+  <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value !== undefined ? value : 'N/A'}</Text> 
+  </View>
 );
 
-const styles = StyleSheet.create({ /* ... (Tus estilos actuales se mantienen) ... */
-  safeArea: { flex: 1, backgroundColor: 'transparent' },
+// Estilos (sin cambios, asegúrate de tenerlos como en tu archivo)
+const styles = StyleSheet.create({
+  safeArea: { flex: 1,  backgroundColor: '#142986', },
   loadingContainer: { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', flex: 1 },
   container: { flex: 1 },
   profileHeader: {
@@ -208,23 +237,23 @@ const styles = StyleSheet.create({ /* ... (Tus estilos actuales se mantienen) ..
     paddingVertical: 24, paddingHorizontal: 16, alignItems: 'center',
     marginBottom: 16,
   },
-  childrenContainer: {
+  childrenContainer: { 
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     justifyContent: 'center', alignItems: 'center',
   },
   avatarPlaceholder: { backgroundColor: '#0284c7', justifyContent: 'center', alignItems: 'center' },
-  avatarImage: { width: '100%', height: '100%', borderRadius: 100 },
+  avatarImage: { width: 100, height: 100, borderRadius: 50 },
   avatarText: { color: 'white', fontSize: 48, fontWeight: 'bold' },
   userName: {
-    fontSize: 24, fontWeight: 'bold', color: '#FFFFFF', marginTop: 16,
+    fontSize: 24, fontWeight: 'bold', color: '#FFFFFF', marginTop: 16, 
     textShadowColor: 'rgba(0, 0, 0, 0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
   },
   userEmail: {
-    fontSize: 15, color: '#E5E5E5', marginBottom: 4,
+    fontSize: 15, color: '#E5E5E5', marginBottom: 4, 
     textShadowColor: 'rgba(0, 0, 0, 0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
   },
   pointsToNextText: {
-    fontSize: 13, color: '#F0F0F0', fontStyle: 'italic', marginTop: 6,
+    fontSize: 13, color: '#F0F0F0', fontStyle: 'italic', marginTop: 6, 
     textShadowColor: 'rgba(0, 0, 0, 0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
   },
   infoSection: {
@@ -235,11 +264,11 @@ const styles = StyleSheet.create({ /* ... (Tus estilos actuales se mantienen) ..
     flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 20,
     borderBottomWidth: 1, borderBottomColor: 'rgba(220, 220, 220, 0.7)', 
   },
-  infoLabel: { fontSize: 16, color: '#4B5563' },
-  infoValue: { fontSize: 16, color: '#1F2937', fontWeight: '600' },
-  editButton: { backgroundColor: '#0284c7', paddingVertical: 14, borderRadius: 8, marginHorizontal: 16, marginBottom: 12, alignItems: 'center', elevation: 2 },
+  infoLabel: { fontSize: 16, color: '#4B5563' }, 
+  infoValue: { fontSize: 16, color: '#1F2937', fontWeight: '600' }, 
+  editButton: { backgroundColor: '#0284c7', paddingVertical: 14, borderRadius: 8, marginHorizontal: 16, marginBottom: 12, alignItems: 'center', elevation: 2 }, 
   editButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
-  logoutButton: { backgroundColor: '#DC2626', paddingVertical: 14, borderRadius: 8, marginHorizontal: 16, marginBottom: 24, alignItems: 'center', elevation: 2 },
+  logoutButton: { backgroundColor: '#DC2626', paddingVertical: 14, borderRadius: 8, marginHorizontal: 16, marginBottom: 24, alignItems: 'center', elevation: 2 }, 
   logoutButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' }
 });
 
