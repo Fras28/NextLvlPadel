@@ -71,6 +71,10 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="CoordinateMatchScreen" options={{ title: 'Coordinar Partido', headerShown: true }} />
             <Stack.Screen name="RecordResultScreen" options={{ title: 'Registrar Resultado', headerShown: true }}/>
+            <Stack.Screen 
+        name="match/MatchDetailScreen" // Refleja la ruta de la carpeta y el archivo
+        options={{ title: 'Detalles del Partido' }} 
+      />
             <Stack.Screen name="terms" options={{ title: 'Términos y Condiciones', presentation: 'modal' }} />
             <Stack.Screen name="forgot-password" options={{ title: 'Recuperar Contraseña' }} />
             <Stack.Screen name="+not-found" />
