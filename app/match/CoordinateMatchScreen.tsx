@@ -1,4 +1,4 @@
-// app/CoordinateMatchScreen.tsx
+// app/match/CoordinateMatchScreen.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView, TextInput,

@@ -20,9 +20,11 @@ interface UpcomingMatch {
   scheduledDateFull: string;
   displayDate: string;
   complex: string;
-  status: 'Por confirmar' | 'Confirmado' | 'Jugado';
+  status: 'Por confirmar' | 'Confirmado'; // Overall match status
   categoryName?: string;
   isUserParticipant?: boolean;
+  team1Confirmed?: boolean; // New: Team 1 confirmation status
+  team2Confirmed?: boolean; // New: Team 2 confirmation status
 }
 
 interface PastMatch {
@@ -48,16 +50,14 @@ interface PastMatch {
 interface DashboardPopulatedTeam {
   id: number;
   documentId?: string;
-  name: string; // 'name' es directo
-  // ... otros campos directos del equipo si los necesitas aquí
+  name: string;
 }
 
 // Interfaz para los datos de categoría como vienen en el log de strapiMatch del Dashboard
 interface DashboardPopulatedCategory {
   id: number;
   documentId?: string;
-  name: string; // 'name' es directo
-  // ... otros campos directos de la categoría
+  name: string;
 }
 
 interface StrapiSetData {
@@ -71,16 +71,17 @@ interface StrapiMatchDashboard {
   id: number;
   documentId: string;
   playedDate?: string | null;
-  estado?: 'Pending' | 'Scheduled' | 'Played' | 'Canceled' | 'Disputed';
+  estado?: 'Pending' | 'Scheduled' | 'Played' | 'Canceled' | 'Disputed'; // Strapi's own status
   scheduledDate?: string | null;
   complex?: string;
-  // Las relaciones son objetos directos según tu log para populate=*
   category?: DashboardPopulatedCategory | null;
   team_1?: DashboardPopulatedTeam | null;
   team_2?: DashboardPopulatedTeam | null;
   sets?: StrapiSetData[] | null;
-  winner?: DashboardPopulatedTeam | null; // Asumiendo que winner también es un objeto de equipo directo
+  winner?: DashboardPopulatedTeam | null;
   loser?: DashboardPopulatedTeam | null;
+  team_1_confirmed?: boolean; // New: Expected from Strapi
+  team_2_confirmed?: boolean; // New: Expected from Strapi
 }
 
 const STRAPI_API_URL = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://a1f3-200-127-6-159.ngrok-free.app';
@@ -104,6 +105,8 @@ const PALETTE = {
   iconYellow: '#F59E0B',
   iconGray: '#6B7280',
   iconOrange: '#F97316',
+  textConfirmed: '#059669', // For "Confirmó" text
+  textAwaitingConfirmation: '#F59E0B', // For "Falta Confirmar" text
 };
 
 const DashboardScreen = () => {
@@ -129,7 +132,6 @@ const DashboardScreen = () => {
     const userTeamIds = user.teams?.map(team => team.id).filter(id => typeof id === 'number') || [];
 
     try {
-      // Usar populate=* ya que es lo que provee los datos que viste en el log
       const response = await fetch(`${STRAPI_API_URL}/api/matches?populate=*`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -138,7 +140,6 @@ const DashboardScreen = () => {
         const errData = await response.json();
         throw new Error(errData.error?.message || `Failed to fetch matches (${response.status})`);
       }
-      // La respuesta es un array de objetos de partido
       const result: { data: StrapiMatchDashboard[] | null; meta: any } = await response.json();
       const allFetchedMatches = result.data || [];
 
@@ -151,7 +152,6 @@ const DashboardScreen = () => {
             return;
         }
 
-        // CORRECCIÓN: Acceder a team_1 y team_2 directamente
         const team1Data = strapiMatch.team_1;
         const team2Data = strapiMatch.team_2;
         const team1Id = team1Data?.id;
@@ -160,9 +160,6 @@ const DashboardScreen = () => {
         const isUserParticipant = (team1Id !== undefined && userTeamIds.includes(team1Id)) ||
                                   (team2Id !== undefined && userTeamIds.includes(team2Id));
         
-        // Descomenta para filtrar partidos solo del usuario
-        // if (!isUserParticipant) return;
-
         const commonMatchData = {
           id: String(strapiMatch.id),
           documentId: strapiMatch.documentId,
@@ -172,7 +169,6 @@ const DashboardScreen = () => {
           team2Id: team2Id,
           scheduledDateFull: strapiMatch.scheduledDate || new Date(0).toISOString(),
           complex: strapiMatch.complex || 'Complejo TBC',
-          // CORRECCIÓN: Acceder a category.name directamente
           categoryName: strapiMatch.category?.name || 'N/A',
           isUserParticipant: isUserParticipant,
         };
@@ -183,10 +179,17 @@ const DashboardScreen = () => {
             const schedDate = new Date(strapiMatch.scheduledDate);
             displayDate = `${schedDate.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}, ${schedDate.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}hs`;
           }
+
+          const team1Confirmed = strapiMatch.team_1_confirmed || false;
+          const team2Confirmed = strapiMatch.team_2_confirmed || false;
+          const overallStatus: 'Confirmado' | 'Por confirmar' = (team1Confirmed && team2Confirmed) ? 'Confirmado' : 'Por confirmar';
+
           localUpcomingMatches.push({
             ...commonMatchData,
             displayDate: displayDate,
-            status: strapiMatch.estado === 'Scheduled' ? 'Confirmado' : 'Por confirmar',
+            status: overallStatus,
+            team1Confirmed: team1Confirmed,
+            team2Confirmed: team2Confirmed,
           });
         } else if (['Played', 'Canceled', 'Disputed'].includes(strapiMatch.estado)) {
           const playedOrScheduledDate = strapiMatch.playedDate || commonMatchData.scheduledDateFull;
@@ -200,7 +203,6 @@ const DashboardScreen = () => {
           const setScores = (strapiMatch.sets && strapiMatch.sets.length > 0)
               ? strapiMatch.sets.map(s => `${s.team1Score}-${s.team2Score}`).join(', ')
               : '';
-          // CORRECCIÓN: Acceder a winner.id directamente
           const winningTeamId = strapiMatch.winner?.id || null;
 
           if (strapiMatch.estado === 'Played') {
@@ -210,7 +212,6 @@ const DashboardScreen = () => {
               else resultTextCalc = `Resultado pendiente ${setScores}`.trim();
             } else {
               if (winningTeamId) {
-                // CORRECCIÓN: Acceder a winner.name directamente
                 const winnerName = strapiMatch.winner?.name || (winningTeamId === team1Id ? commonMatchData.team1Name : (winningTeamId === team2Id ? commonMatchData.team2Name : 'Desconocido'));
                 resultTextCalc = `Ganador: ${winnerName} ${setScores}`.trim();
               } else resultTextCalc = `Resultado pendiente ${setScores}`.trim();
@@ -258,10 +259,10 @@ const DashboardScreen = () => {
   }, [fetchMatches]);
 
   const navigateToCoordinateScreen = (matchNumericId: string) => {
-    router.push({ pathname: '/CoordinateMatchScreen', params: { matchId: matchNumericId } });
+    router.push({ pathname: '../match/CoordinateMatchScreen', params: { matchId: matchNumericId } });
   };
   const navigateToRecordResultScreen = (matchNumericId: string) => {
-    router.push({ pathname: '/RecordResultScreen', params: { matchId: matchNumericId } });
+    router.push({ pathname: '../match/RecordResultScreen', params: { matchId: matchNumericId } });
   };
 
   const navigateToMatchDetailScreen = (idParaDetalle: string) => {
@@ -269,7 +270,7 @@ const DashboardScreen = () => {
     router.push({ pathname: '../match/MatchDetailScreen', params: { matchId: idParaDetalle } });
   };
 
-  const getUpcomingMatchCardStyles = (match: UpcomingMatch): ViewStyle[] => { /* ... */ 
+  const getUpcomingMatchCardStyles = (match: UpcomingMatch): ViewStyle[] => { 
     const cardStyles: ViewStyle[] = [styles.matchCardBase];
     if (match.status === 'Por confirmar') {
       cardStyles.push(styles.matchCardBorderPending);
@@ -278,7 +279,7 @@ const DashboardScreen = () => {
     }
     return cardStyles;
   };
-  const getPastMatchCardStyles = (match: PastMatch): ViewStyle[] => { /* ... */ 
+  const getPastMatchCardStyles = (match: PastMatch): ViewStyle[] => { 
     const cardStyles: ViewStyle[] = [styles.matchCardBase];
     const userTeamIds = user?.teams?.map(team => team.id).filter(id => typeof id === 'number') || [];
 
@@ -299,7 +300,7 @@ const DashboardScreen = () => {
     }
     return cardStyles;
   };
-  const renderResultText = (match: PastMatch): React.ReactNode => { /* ... */ 
+  const renderResultText = (match: PastMatch): React.ReactNode => { 
     if (!match.resultText) return null;
     let prefix = match.resultText;
     let scores = "";
@@ -330,7 +331,7 @@ const DashboardScreen = () => {
   };
 
   if (authIsLoading || (isLoadingMatches && !refreshing && upcomingMatches.length === 0 && pastMatches.length === 0 && !error)) {
-    return ( /* ... UI de carga ... */ 
+    return ( 
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.loadingContainerFull}>
                 <ActivityIndicator size="large" color={PALETTE.cardBackground} />
@@ -341,7 +342,7 @@ const DashboardScreen = () => {
   }
   
   if (error && !refreshing) {
-    return ( /* ... UI de error ... */ 
+    return ( 
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.loadingContainerFull}>
                 <MaterialIcons name="error-outline" size={48} color="#ffdddd" style={{marginBottom:10}}/>
@@ -365,7 +366,23 @@ const DashboardScreen = () => {
           <Text style={styles.sectionTitle}>Próximos Partidos</Text>
           {isLoadingMatches && upcomingMatches.length === 0 && refreshing ? (
             <ActivityIndicator color={PALETTE.cardBackground} style={{marginTop: 20, marginBottom: 20}}/>
-          ) : upcomingMatches.length > 0 ? upcomingMatches.map((match) => (
+          ) : upcomingMatches.length > 0 ? upcomingMatches.map((match) => {
+            console.log(match,"team1Confirmed");
+            
+            const userTeamIds = user?.teams?.map(team => team.id).filter(id => typeof id === 'number') || [];
+            let showCoordinateButton = false;
+            if (match.status === 'Por confirmar' && match.isUserParticipant) {
+                const userInTeam1 = match.team1Id !== undefined && userTeamIds.includes(match.team1Id);
+                const userInTeam2 = match.team2Id !== undefined && userTeamIds.includes(match.team2Id);
+
+                if (userInTeam1 && !match.team1Confirmed) {
+                    showCoordinateButton = true;
+                } else if (userInTeam2 && !match.team2Confirmed) {
+                    showCoordinateButton = true;
+                }
+            }
+            
+            return (
             <TouchableOpacity 
                 key={match.documentId} 
                 onPress={() => navigateToMatchDetailScreen(match.documentId)} 
@@ -377,18 +394,37 @@ const DashboardScreen = () => {
               <View style={styles.matchDetailItem}><Text style={styles.matchDetailLabel}>Fecha: </Text><Text style={styles.matchDetailValue}>{match.displayDate}</Text></View>
               <View style={styles.matchDetailItem}><Text style={styles.matchDetailLabel}>Lugar: </Text><Text style={styles.matchDetailValue}>{match.complex}</Text></View>
               {match.categoryName && match.categoryName !== 'N/A' && <View style={styles.matchDetailItem}><Text style={styles.matchDetailLabel}>Categoría: </Text><Text style={styles.matchDetailValue}>{match.categoryName}</Text></View>}
+              
+              <View style={styles.teamConfirmationContainer}>
+                <View style={styles.teamConfirmStatus}>
+                    <Text style={styles.matchDetailLabelSmall} numberOfLines={1} ellipsizeMode="tail">{match.team1Name}: </Text>
+                    <Text style={[styles.matchDetailValueSmall, match.team1Confirmed ? styles.textConfirmed : styles.textAwaitingConfirmation]}>
+                        {match.team1Confirmed ? 'Confirmó' : 'Falta Confirmar'}
+                    </Text>
+                </View>
+                <View style={styles.teamConfirmStatus}>
+                    <Text style={styles.matchDetailLabelSmall} numberOfLines={1} ellipsizeMode="tail">{match.team2Name}: </Text>
+                    <Text style={[styles.matchDetailValueSmall, match.team2Confirmed ? styles.textConfirmed : styles.textAwaitingConfirmation]}>
+                        {match.team2Confirmed ? 'Confirmó' : 'Falta Confirmar'}
+                    </Text>
+                </View>
+              </View>
+
               <View style={styles.statusActionContainer}>
                 <View style={[styles.statusBadge, match.status === 'Confirmado' ? styles.statusBadgeConfirmed : styles.statusBadgePending]}>
-                  <Text style={[styles.statusBadgeText, match.status === 'Confirmado' ? styles.statusBadgeTextConfirmed : styles.statusBadgeTextPending]}>{match.status}</Text>
+                  <Text style={[styles.statusBadgeText, match.status === 'Confirmado' ? styles.statusBadgeTextConfirmed : styles.statusBadgeTextPending]}>
+                    {match.status}
+                  </Text>
                 </View>
-                {match.status === 'Por confirmar' && match.isUserParticipant && (
+                {showCoordinateButton && (
                   <TouchableOpacity style={[styles.actionButtonBase, styles.actionButtonCoordinate]} onPress={(e) => { e.stopPropagation(); navigateToCoordinateScreen(match.id); }}>
                     <Text style={styles.actionButtonText}>Coordinar</Text>
                   </TouchableOpacity>
                 )}
               </View>
             </TouchableOpacity>
-          )) : ( 
+            );
+          }) : ( 
             !refreshing && <View style={styles.emptyStateCard}><Text style={styles.emptyText}>No tienes próximos partidos.</Text></View>
           )}
         </View>
@@ -442,7 +478,7 @@ const DashboardScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({ /* ... (Mismos estilos que antes) ... */ 
+const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: PALETTE.primaryBlue },
   container: { flex: 1, paddingHorizontal: 16, paddingTop: Platform.OS === 'android' ? 20 : 16 },
   loadingContainerFull: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: PALETTE.primaryBlue, },
@@ -482,6 +518,34 @@ const styles = StyleSheet.create({ /* ... (Mismos estilos que antes) ... */
   resultTextDefault: { color: PALETTE.textMedium, fontWeight: 'normal'},
   resultTextScoresPart: { color: PALETTE.textLight, fontWeight: 'normal' },
   emptyStateCard: { backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 8, paddingVertical: 25, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center', minHeight: 100, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.6)', borderWidth: 1.5, },
-  emptyText: { fontSize: 16, color: PALETTE.textDark, textAlign: 'center', fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif', lineHeight: 23, }
+  emptyText: { fontSize: 16, color: PALETTE.textDark, textAlign: 'center', fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif', lineHeight: 23, },
+  teamConfirmationContainer: { 
+    marginTop: 8, 
+    marginBottom: 4,
+  },
+  teamConfirmStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 3, 
+    flexShrink: 1,
+  },
+  matchDetailLabelSmall: { 
+    fontSize: 13, 
+    color: PALETTE.textLight, 
+    fontWeight: '500', 
+    marginRight: 4,
+    flexShrink: 1, 
+  },
+  matchDetailValueSmall: { 
+    fontSize: 13, 
+    color: PALETTE.textMedium,
+    fontWeight: '600',
+  },
+  textConfirmed: {
+    color: PALETTE.textConfirmed,
+  },
+  textAwaitingConfirmation: {
+    color: PALETTE.textAwaitingConfirmation, 
+  },
 });
 export default DashboardScreen;

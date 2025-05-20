@@ -1,4 +1,4 @@
-// app/RecordResultScreen.tsx
+// app/match/RecordResultScreen.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView, TextInput,
