@@ -70,8 +70,8 @@ export default function RootLayout() {
             <Stack.Screen name="Auth/LoginScreen" options={{ title: 'Iniciar Sesión', headerShown: false }} />
             <Stack.Screen name="Auth/RegisterScreen" options={{ title: 'Crear Cuenta', headerShown: false }}/>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="CoordinateMatchScreen" options={{ title: 'Coordinar Partido', headerShown: true }} />
-            <Stack.Screen name="RecordResultScreen" options={{ title: 'Registrar Resultado', headerShown: true }}/>
+            <Stack.Screen name="match/CoordinateMatchScreen" options={{ title: 'Coordinar Partido', headerShown: false }} />
+            <Stack.Screen name="match/RecordResultScreen" options={{ title: 'Registrar Resultado', headerShown: false }}/>
             <Stack.Screen 
         name="match/MatchDetailScreen" // Refleja la ruta de la carpeta y el archivo
         options={{ title: 'Detalles del Partido' }} 
@@ -90,5 +90,6 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   globalBackgroundImage: {
     flex: 1,
+
   },
 });
