@@ -1,16 +1,26 @@
 // app/Auth/RegisterScreen.tsx
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, SafeAreaView,
-  StatusBar, ScrollView, Alert, StyleSheet, Platform, ActivityIndicator
-} from 'react-native';
-import { Link, useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuth } from '../../context/AuthContext'; // <-- IMPORTA useAuth
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  SafeAreaView,
+  StatusBar,
+  ScrollView,
+  Alert,
+  StyleSheet,
+  Platform,
+  ActivityIndicator,
+} from "react-native";
+import { Link, useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "../../context/AuthContext"; // <-- IMPORTA useAuth
+import SponsorBottom from "@/components/elementos/SponsorBottom";
 
 // Asegúrate que esta URL sea correcta y accesible desde tu dispositivo/emulador
-const STRAPI_BACKEND_URL = 'https://a1f3-200-127-6-159.ngrok-free.app';
+const STRAPI_BACKEND_URL = "https://3c1c-200-127-6-159.ngrok-free.app";
 
 const RegisterScreen = () => {
   const router = useRouter();
@@ -18,13 +28,13 @@ const RegisterScreen = () => {
   // 'fullName' y 'padelLevel' son campos personalizados que quizás necesites
   // añadir a tu Content-Type 'user' en Strapi si quieres guardarlos directamente.
   const { signIn } = useAuth(); // <-- USA EL HOOK
-  const [username, setUsername] = useState<string>(''); // 'username' para Strapi
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [username, setUsername] = useState<string>(""); // 'username' para Strapi
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [confirmPassword, setConfirmPassword] = useState<string>("");
   // Campos adicionales (asegúrate que tu backend Strapi los acepte o guárdalos de otra forma)
-  const [fullName, setFullName] = useState<string>(''); // Podrías usarlo para 'username' o un campo custom
-  const [padelLevel, setPadelLevel] = useState<string>(''); // Campo custom
+  const [fullName, setFullName] = useState<string>(""); // Podrías usarlo para 'username' o un campo custom
+  const [padelLevel, setPadelLevel] = useState<string>(""); // Campo custom
 
   const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -32,24 +42,42 @@ const RegisterScreen = () => {
 
   const handleRegister = async () => {
     // setError(''); // Limpiar errores previos
-    if (!username || !email || !password || !confirmPassword /* || !padelLevel */) { // PadelLevel es opcional aquí, depende de tu lógica
-      Alert.alert('Campos incompletos', 'Por favor, completa usuario, email y contraseña.');
+    if (
+      !username ||
+      !email ||
+      !password ||
+      !confirmPassword /* || !padelLevel */
+    ) {
+      // PadelLevel es opcional aquí, depende de tu lógica
+      Alert.alert(
+        "Campos incompletos",
+        "Por favor, completa usuario, email y contraseña."
+      );
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Contraseña insegura', 'La contraseña debe tener al menos 6 caracteres.');
+      Alert.alert(
+        "Contraseña insegura",
+        "La contraseña debe tener al menos 6 caracteres."
+      );
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert('Error de contraseña', 'Las contraseñas no coinciden.');
+      Alert.alert("Error de contraseña", "Las contraseñas no coinciden.");
       return;
     }
     if (!/\S+@\S+\.\S+/.test(email)) {
-      Alert.alert('Email inválido', 'Por favor, ingresa un correo electrónico válido.');
+      Alert.alert(
+        "Email inválido",
+        "Por favor, ingresa un correo electrónico válido."
+      );
       return;
     }
     if (!termsAccepted) {
-      Alert.alert('Términos y Condiciones', 'Debes aceptar los términos y condiciones.');
+      Alert.alert(
+        "Términos y Condiciones",
+        "Debes aceptar los términos y condiciones."
+      );
       return;
     }
 
@@ -73,36 +101,49 @@ const RegisterScreen = () => {
       // Pero es mejor tener un campo de 'username' explícito.
       // El `RegisterForm.js` usa `username` directamente.
 
-      const response = await fetch(`${STRAPI_BACKEND_URL}/api/auth/local/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(registrationPayload),
-      });
+      const response = await fetch(
+        `${STRAPI_BACKEND_URL}/api/auth/local/register`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(registrationPayload),
+        }
+      );
 
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        const errorMessage = data?.error?.message || data?.message?.[0]?.messages?.[0]?.message || 'Ocurrió un error en el registro.';
+        const errorMessage =
+          data?.error?.message ||
+          data?.message?.[0]?.messages?.[0]?.message ||
+          "Ocurrió un error en el registro.";
         throw new Error(errorMessage);
       }
 
-      console.log('Registro data:', data);
+      console.log("Registro data:", data);
       // Opcional: auto-login después del registro si Strapi devuelve JWT y user
-      if (data.jwt && data.user) { // Si Strapi devuelve token y user en registro (auto-login)
+      if (data.jwt && data.user) {
+        // Si Strapi devuelve token y user en registro (auto-login)
         await signIn(data.user, data.jwt); // <-- LLAMA A signIn
-        Alert.alert('Registro Exitoso', `¡Bienvenido ${data.user.username}!`);
-        router.replace('/(tabs)');
-      } else { // Si no hay auto-login
-        Alert.alert('Registro Exitoso', '¡Cuenta creada! Por favor, inicia sesión.');
-        router.replace('/Auth/LoginScreen');
+        Alert.alert("Registro Exitoso", `¡Bienvenido ${data.user.username}!`);
+        router.replace("/(tabs)");
+      } else {
+        // Si no hay auto-login
+        Alert.alert(
+          "Registro Exitoso",
+          "¡Cuenta creada! Por favor, inicia sesión."
+        );
+        router.replace("/Auth/LoginScreen");
       }
-
     } catch (err: any) {
-      console.error('Error en handleRegister:', err);
+      console.error("Error en handleRegister:", err);
       // setError(err.message);
-      Alert.alert('Error de Registro', err.message || 'No se pudo conectar al servidor.');
+      Alert.alert(
+        "Error de Registro",
+        err.message || "No se pudo conectar al servidor."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -111,7 +152,10 @@ const RegisterScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" />
-      <ScrollView contentContainerStyle={styles.scrollContainer} style={styles.scrollView}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        style={styles.scrollView}
+      >
         <View style={styles.formContainer}>
           <Text style={styles.formTitle}>Crear Cuenta</Text>
 
@@ -138,7 +182,6 @@ const RegisterScreen = () => {
               autoCapitalize="words"
             />
           </View> */}
-
 
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Correo Electrónico</Text>
@@ -186,13 +229,20 @@ const RegisterScreen = () => {
           </View> */}
 
           <View style={styles.checkboxContainer}>
-            <TouchableOpacity onPress={() => setTermsAccepted(!termsAccepted)} style={[styles.checkboxBase, termsAccepted && styles.checkboxChecked]}>
+            <TouchableOpacity
+              onPress={() => setTermsAccepted(!termsAccepted)}
+              style={[
+                styles.checkboxBase,
+                termsAccepted && styles.checkboxChecked,
+              ]}
+            >
               {termsAccepted && <Text style={styles.checkboxCheckmark}>✓</Text>}
             </TouchableOpacity>
             <Link href={"/terms" as any} asChild>
               <TouchableOpacity>
                 <Text style={styles.termsText}>
-                  Acepto los <Text style={styles.termsLink}>Términos y Condiciones</Text>
+                  Acepto los{" "}
+                  <Text style={styles.termsLink}>Términos y Condiciones</Text>
                 </Text>
               </TouchableOpacity>
             </Link>
@@ -200,7 +250,11 @@ const RegisterScreen = () => {
 
           {/* {error ? <Text style={styles.errorText}>{error}</Text> : null} */}
 
-          <TouchableOpacity onPress={handleRegister} style={[styles.button, styles.buttonSubmit]} disabled={isLoading}>
+          <TouchableOpacity
+            onPress={handleRegister}
+            style={[styles.button, styles.buttonSubmit]}
+            disabled={isLoading}
+          >
             {isLoading ? (
               <ActivityIndicator size="small" color="#075985" />
             ) : (
@@ -215,6 +269,13 @@ const RegisterScreen = () => {
               </Text>
             </TouchableOpacity>
           </Link>
+          <SponsorBottom
+            imageHeight={35}
+            imageWidth={110}
+            backgroundColor="rgba(10,20,70,0.7)"
+            borderColor="#FFD700" // Un dorado, por ejemplo
+            title="Con el Apoyo de"
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -225,65 +286,68 @@ const RegisterScreen = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#142986',
+    backgroundColor: "#142986",
   },
   scrollView: {
     flex: 1,
   },
   scrollContainer: {
     flexGrow: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: 24,
     paddingVertical: 32,
   },
-  formContainer: { // Este SÍ tiene fondo blanco para el formulario
-    backgroundColor: 'white',
-    padding: Platform.OS === 'ios' ? 24 : 32,
+  formContainer: {
+    // Este SÍ tiene fondo blanco para el formulario
+    backgroundColor: "white",
+    padding: Platform.OS === "ios" ? 24 : 32,
     borderRadius: 12,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
-    width: '100%',
+    width: "100%",
     maxWidth: 448,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   formTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#0369a1',
+    fontWeight: "bold",
+    color: "#0369a1",
     marginBottom: 32,
-    textAlign: 'center',
+    textAlign: "center",
   },
   inputGroup: {
     marginBottom: 20,
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
+    fontWeight: "500",
+    color: "#374151",
     marginBottom: 4,
   },
   textInput: {
-    width: '100%',
+    width: "100%",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: "#d1d5db",
     borderRadius: 8,
-    backgroundColor: 'white',
-    color: '#111827',
+    backgroundColor: "white",
+    color: "#111827",
     fontSize: 16,
   },
   inputHelperText: {
     fontSize: 12,
-    color: '#6b7280',
+    color: "#6b7280",
     marginTop: 4,
   },
   checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 24,
   },
   checkboxBase: {
@@ -291,52 +355,52 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: '#9ca3af',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderColor: "#9ca3af",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
   checkboxChecked: {
-    backgroundColor: '#0284c7',
-    borderColor: '#0284c7',
+    backgroundColor: "#0284c7",
+    borderColor: "#0284c7",
   },
   checkboxCheckmark: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: "white",
+    fontWeight: "bold",
     fontSize: 16,
   },
   termsText: {
     fontSize: 14,
-    color: '#374151',
+    color: "#374151",
     flexShrink: 1,
   },
   termsLink: {
-    color: '#0284c7',
-    fontWeight: 'bold',
+    color: "#0284c7",
+    fontWeight: "bold",
   },
   button: {
-    width: '100%',
+    width: "100%",
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   buttonSubmit: {
-    backgroundColor: '#facc15',
+    backgroundColor: "#facc15",
   },
   buttonSubmitText: {
-    color: '#075985',
-    textAlign: 'center',
-    fontWeight: 'bold',
+    color: "#075985",
+    textAlign: "center",
+    fontWeight: "bold",
     fontSize: 18,
   },
   linkToLogin: {
     marginTop: 24,
   },
   linkToLoginText: {
-    textAlign: 'center',
-    color: '#0284c7',
-    fontWeight: '500',
+    textAlign: "center",
+    color: "#0284c7",
+    fontWeight: "500",
   },
   // errorText: {
   //   color: 'red',

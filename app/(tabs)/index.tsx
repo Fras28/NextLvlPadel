@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth, User } from '../../context/AuthContext'; // Ajusta la ruta si es necesario
 
-// --- INTERFACES CORREGIDAS PARA DASHBOARD ---
+// --- INTERFACES (sin cambios respecto a tu última versión) ---
 interface UpcomingMatch {
   id: string;
   documentId: string;
@@ -20,11 +20,11 @@ interface UpcomingMatch {
   scheduledDateFull: string;
   displayDate: string;
   complex: string;
-  status: 'Por confirmar' | 'Confirmado'; // Overall match status
+  status: 'Por confirmar' | 'Confirmado';
   categoryName?: string;
   isUserParticipant?: boolean;
-  team1Confirmed?: boolean; // New: Team 1 confirmation status
-  team2Confirmed?: boolean; // New: Team 2 confirmation status
+  team1Confirmed?: boolean;
+  team2Confirmed?: boolean;
 }
 
 interface PastMatch {
@@ -46,14 +46,12 @@ interface PastMatch {
   isUserParticipant?: boolean;
 }
 
-// Interfaz para los datos de equipo como vienen en el log de strapiMatch del Dashboard
 interface DashboardPopulatedTeam {
   id: number;
   documentId?: string;
   name: string;
 }
 
-// Interfaz para los datos de categoría como vienen en el log de strapiMatch del Dashboard
 interface DashboardPopulatedCategory {
   id: number;
   documentId?: string;
@@ -66,12 +64,11 @@ interface StrapiSetData {
     team2Score: number;
 }
 
-// Interfaz para StrapiMatch en Dashboard, reflejando el log
 interface StrapiMatchDashboard {
   id: number;
   documentId: string;
   playedDate?: string | null;
-  estado?: 'Pending' | 'Scheduled' | 'Played' | 'Canceled' | 'Disputed'; // Strapi's own status
+  estado?: 'Pending' | 'Scheduled' | 'Played' | 'Canceled' | 'Disputed';
   scheduledDate?: string | null;
   complex?: string;
   category?: DashboardPopulatedCategory | null;
@@ -80,11 +77,14 @@ interface StrapiMatchDashboard {
   sets?: StrapiSetData[] | null;
   winner?: DashboardPopulatedTeam | null;
   loser?: DashboardPopulatedTeam | null;
-  team_1_confirmed?: boolean; // New: Expected from Strapi
-  team_2_confirmed?: boolean; // New: Expected from Strapi
+  // Nombres de campo para confirmación (primero el estándar, luego el alternativo)
+  confirmationTeam1?: boolean;
+  confirmationTeam2?: boolean;
+  team_1_confirmed?: boolean; // Mantener por si la API devuelve este
+  team_2_confirmed?: boolean; // Mantener por si la API devuelve este
 }
 
-const STRAPI_API_URL = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://a1f3-200-127-6-159.ngrok-free.app';
+const STRAPI_API_URL = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://3c1c-200-127-6-159.ngrok-free.app';
 
 const PALETTE = {
   primaryBlue: '#142986',
@@ -105,8 +105,8 @@ const PALETTE = {
   iconYellow: '#F59E0B',
   iconGray: '#6B7280',
   iconOrange: '#F97316',
-  textConfirmed: '#059669', // For "Confirmó" text
-  textAwaitingConfirmation: '#F59E0B', // For "Falta Confirmar" text
+  textConfirmed: '#059669',
+  textAwaitingConfirmation: '#F59E0B',
 };
 
 const DashboardScreen = () => {
@@ -130,6 +130,8 @@ const DashboardScreen = () => {
 
     setIsLoadingMatches(true); setError(null);
     const userTeamIds = user.teams?.map(team => team.id).filter(id => typeof id === 'number') || [];
+    console.log('[DashboardScreen] User Team IDs:', userTeamIds);
+
 
     try {
       const response = await fetch(`${STRAPI_API_URL}/api/matches?populate=*`, {
@@ -142,13 +144,16 @@ const DashboardScreen = () => {
       }
       const result: { data: StrapiMatchDashboard[] | null; meta: any } = await response.json();
       const allFetchedMatches = result.data || [];
+      // console.log('[DashboardScreen] All Fetched Matches:', JSON.stringify(allFetchedMatches, null, 2));
+
 
       const localUpcomingMatches: UpcomingMatch[] = [];
       const localPastMatches: PastMatch[] = [];
 
       allFetchedMatches.forEach(strapiMatch => {
+        // console.log(`[DashboardScreen] Processing Match ID: ${strapiMatch.id}, DocID: ${strapiMatch.documentId}`);
         if (!strapiMatch.documentId || !strapiMatch.estado) {
-            console.warn(`Partido (ID numérico: ${strapiMatch.id}) no tiene documentId o estado. Saltando.`);
+            console.warn(`[DashboardScreen] Partido (ID numérico: ${strapiMatch.id}) no tiene documentId o estado. Saltando.`);
             return;
         }
 
@@ -156,9 +161,19 @@ const DashboardScreen = () => {
         const team2Data = strapiMatch.team_2;
         const team1Id = team1Data?.id;
         const team2Id = team2Data?.id;
+        // console.log(`[DashboardScreen] Match ${strapiMatch.id} - Team1 ID: ${team1Id}, Team2 ID: ${team2Id}`);
 
         const isUserParticipant = (team1Id !== undefined && userTeamIds.includes(team1Id)) ||
                                   (team2Id !== undefined && userTeamIds.includes(team2Id));
+        // console.log(`[DashboardScreen] Match ${strapiMatch.id} - Is User Participant: ${isUserParticipant}`);
+        
+        // --- MODIFICACIÓN CLAVE: Filtrar partidos ---
+        // Si el usuario no es participante, no añadir este partido a las listas.
+        if (!isUserParticipant) {
+          // console.log(`[DashboardScreen] Match ID ${strapiMatch.id} skipped (user not participant).`);
+          return; 
+        }
+        // --- FIN DE LA MODIFICACIÓN ---
         
         const commonMatchData = {
           id: String(strapiMatch.id),
@@ -180,8 +195,12 @@ const DashboardScreen = () => {
             displayDate = `${schedDate.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}, ${schedDate.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}hs`;
           }
 
-          const team1Confirmed = strapiMatch.team_1_confirmed || false;
-          const team2Confirmed = strapiMatch.team_2_confirmed || false;
+          // Prioriza 'confirmationTeam1/2', luego 'team_1/2_confirmed' si el primero no existe
+          const team1Confirmed = strapiMatch.confirmationTeam1 ?? strapiMatch.team_1_confirmed ?? false;
+          const team2Confirmed = strapiMatch.confirmationTeam2 ?? strapiMatch.team_2_confirmed ?? false;
+          // console.log(`[DashboardScreen] Match ID ${strapiMatch.id} - T1 Confirmed: ${team1Confirmed} (Raw: Strapi C1: ${strapiMatch.confirmationTeam1}, Strapi T1C: ${strapiMatch.team_1_confirmed})`);
+          // console.log(`[DashboardScreen] Match ID ${strapiMatch.id} - T2 Confirmed: ${team2Confirmed} (Raw: Strapi C2: ${strapiMatch.confirmationTeam2}, Strapi T2C: ${strapiMatch.team_2_confirmed})`);
+
           const overallStatus: 'Confirmado' | 'Por confirmar' = (team1Confirmed && team2Confirmed) ? 'Confirmado' : 'Por confirmar';
 
           localUpcomingMatches.push({
@@ -206,16 +225,10 @@ const DashboardScreen = () => {
           const winningTeamId = strapiMatch.winner?.id || null;
 
           if (strapiMatch.estado === 'Played') {
-            if (isUserParticipant) {
-              if (winningTeamId && userTeamIds.includes(winningTeamId)) resultTextCalc = `Ganaste ${setScores}`.trim();
-              else if (winningTeamId) resultTextCalc = `Perdiste ${setScores}`.trim();
-              else resultTextCalc = `Resultado pendiente ${setScores}`.trim();
-            } else {
-              if (winningTeamId) {
-                const winnerName = strapiMatch.winner?.name || (winningTeamId === team1Id ? commonMatchData.team1Name : (winningTeamId === team2Id ? commonMatchData.team2Name : 'Desconocido'));
-                resultTextCalc = `Ganador: ${winnerName} ${setScores}`.trim();
-              } else resultTextCalc = `Resultado pendiente ${setScores}`.trim();
-            }
+            // isUserParticipant ya se calculó y usó para filtrar, así que siempre será true aquí
+            if (winningTeamId && userTeamIds.includes(winningTeamId)) resultTextCalc = `Ganaste ${setScores}`.trim();
+            else if (winningTeamId) resultTextCalc = `Perdiste ${setScores}`.trim();
+            else resultTextCalc = `Resultado pendiente ${setScores}`.trim();
           } else if (strapiMatch.estado === 'Canceled') resultTextCalc = 'Partido Cancelado';
           else if (strapiMatch.estado === 'Disputed') resultTextCalc = 'Resultado en Disputa';
 
@@ -238,6 +251,7 @@ const DashboardScreen = () => {
       setPastMatches(localPastMatches);
 
     } catch (e: any) {
+      console.error("[DashboardScreen] Error fetching matches:", e);
       setError(e.message || "No se pudieron cargar los partidos.");
     } finally {
       setIsLoadingMatches(false); setRefreshing(false);
@@ -245,11 +259,16 @@ const DashboardScreen = () => {
   }, [token, user, authIsLoading]);
 
   useEffect(() => {
-    if (!authIsLoading && token && user) {
+    if (!authIsLoading && token && user?.teams) { // Asegurarse que user.teams exista
       fetchMatches();
     } else if (!authIsLoading && (!token || !user)) {
       setError("Usuario no autenticado.");
       setIsLoadingMatches(false);
+    } else if (!authIsLoading && user && !user.teams) {
+        console.warn("[DashboardScreen] User data loaded, but user.teams is missing. Matches might not filter correctly.");
+        // Podrías querer llamar a fetchMatches igualmente, pero el filtro de `isUserParticipant` no funcionará bien.
+        // O podrías intentar forzar una actualización del usuario si AuthContext lo permite.
+        fetchMatches(); // Intentar de todas formas, userTeamIds será [] y no filtrará bien
     }
   }, [authIsLoading, token, user, fetchMatches]);
 
@@ -258,18 +277,20 @@ const DashboardScreen = () => {
     fetchMatches();
   }, [fetchMatches]);
 
-  const navigateToCoordinateScreen = (matchNumericId: string) => {
-    router.push({ pathname: '../match/CoordinateMatchScreen', params: { matchId: matchNumericId } });
+  const navigateToCoordinateScreen = (matchDocumentId: string) => {
+    router.push({ pathname: '../match/CoordinateMatchScreen', params: { matchId: matchDocumentId } });
   };
   const navigateToRecordResultScreen = (matchNumericId: string) => {
     router.push({ pathname: '../match/RecordResultScreen', params: { matchId: matchNumericId } });
   };
 
-  const navigateToMatchDetailScreen = (idParaDetalle: string) => {
-    console.log("[DashboardScreen] Navigating to MatchDetailScreen with ID:", idParaDetalle);
-    router.push({ pathname: '../match/MatchDetailScreen', params: { matchId: idParaDetalle } });
+  const navigateToMatchDetailScreen = (matchDocumentId: string) => {
+    console.log("[DashboardScreen] Navigating to MatchDetailScreen with Document ID:", matchDocumentId);
+    router.push({ pathname: '../match/MatchDetailScreen', params: { matchId: matchDocumentId } });
   };
 
+  // --- El resto del componente (getStyles, renderResultText, JSX) se mantiene igual ---
+  // ... (copia el resto de tu componente desde aquí)
   const getUpcomingMatchCardStyles = (match: UpcomingMatch): ViewStyle[] => { 
     const cardStyles: ViewStyle[] = [styles.matchCardBase];
     if (match.status === 'Por confirmar') {
@@ -284,14 +305,13 @@ const DashboardScreen = () => {
     const userTeamIds = user?.teams?.map(team => team.id).filter(id => typeof id === 'number') || [];
 
     if (match.estado === 'Played') {
-      if (match.isUserParticipant) {
-        if (match.winningTeamId && userTeamIds.includes(match.winningTeamId)) {
-          cardStyles.push(styles.matchCardBorderWin); 
-        } else if (match.winningTeamId) { 
-          cardStyles.push(styles.matchCardBorderLoss); 
-        } else { 
-          cardStyles.push(styles.matchCardBorderPlayedPending);
-        }
+      // Como ya filtramos por isUserParticipant, esta condición interna es suficiente.
+      if (match.winningTeamId && userTeamIds.includes(match.winningTeamId)) {
+        cardStyles.push(styles.matchCardBorderWin); 
+      } else if (match.winningTeamId) { 
+        cardStyles.push(styles.matchCardBorderLoss); 
+      } else { 
+        cardStyles.push(styles.matchCardBorderPlayedPending);
       }
     } else if (match.estado === 'Canceled') {
       cardStyles.push(styles.matchCardBorderCanceled);
@@ -315,12 +335,14 @@ const DashboardScreen = () => {
     
     if (prefix.startsWith("Ganaste")) {
       prefixStyle = styles.resultTextWin;
-      prefix = "Ganaste"; 
+      // prefix = "Ganaste"; // El prefijo ya es "Ganaste", no necesita reasignación
     } else if (prefix.startsWith("Perdiste")) {
       prefixStyle = styles.resultTextLoss;
-      prefix = "Perdiste"; 
+      // prefix = "Perdiste"; 
     } else if (prefix.startsWith("Resultado pendiente")) {
-      prefix = "Resultado pendiente";
+      // prefix = "Resultado pendiente";
+    } else if (prefix.startsWith("Ganador:")) {
+        prefixStyle = styles.resultTextWin; // O un estilo más neutral para "Ganador:"
     }
     return (
       <Text style={styles.matchDetailText}>
@@ -367,11 +389,12 @@ const DashboardScreen = () => {
           {isLoadingMatches && upcomingMatches.length === 0 && refreshing ? (
             <ActivityIndicator color={PALETTE.cardBackground} style={{marginTop: 20, marginBottom: 20}}/>
           ) : upcomingMatches.length > 0 ? upcomingMatches.map((match) => {
-            console.log(match,"team1Confirmed");
-            
             const userTeamIds = user?.teams?.map(team => team.id).filter(id => typeof id === 'number') || [];
             let showCoordinateButton = false;
-            if (match.status === 'Por confirmar' && match.isUserParticipant) {
+            // isUserParticipant siempre será true aquí debido al filtro,
+            // por lo que la lógica del botón se simplifica a si el estado es 'Por confirmar'
+            // y el equipo del usuario aún no ha confirmado.
+            if (match.status === 'Por confirmar') { // No es necesario chequear match.isUserParticipant aquí
                 const userInTeam1 = match.team1Id !== undefined && userTeamIds.includes(match.team1Id);
                 const userInTeam2 = match.team2Id !== undefined && userTeamIds.includes(match.team2Id);
 
@@ -417,7 +440,7 @@ const DashboardScreen = () => {
                   </Text>
                 </View>
                 {showCoordinateButton && (
-                  <TouchableOpacity style={[styles.actionButtonBase, styles.actionButtonCoordinate]} onPress={(e) => { e.stopPropagation(); navigateToCoordinateScreen(match.id); }}>
+                  <TouchableOpacity style={[styles.actionButtonBase, styles.actionButtonCoordinate]} onPress={(e) => { e.stopPropagation(); navigateToCoordinateScreen(match.documentId); }}>
                     <Text style={styles.actionButtonText}>Coordinar</Text>
                   </TouchableOpacity>
                 )}
@@ -439,12 +462,10 @@ const DashboardScreen = () => {
             let iconColor = PALETTE.textMedium;
 
             if (match.estado === 'Played') { 
-              if (match.isUserParticipant) {
+                // isUserParticipant siempre será true aquí
                 if (match.winningTeamId && userTeamIds.includes(match.winningTeamId)) { iconName = 'emoji-events'; iconColor = PALETTE.iconYellow; }
                 else if (match.winningTeamId) { iconName = 'sentiment-very-dissatisfied'; iconColor = PALETTE.lossRed; }
                 else { iconName = 'hourglass-empty'; iconColor = PALETTE.iconOrange; }
-              } else if (match.winningTeamId) { iconName = 'emoji-events'; iconColor = PALETTE.iconYellow; }
-              else { iconName = 'hourglass-empty'; iconColor = PALETTE.iconOrange; }
             } else if (match.estado === 'Canceled') { iconName = 'cancel'; iconColor = PALETTE.iconGray;
             } else if (match.estado === 'Disputed') { iconName = 'report-problem'; iconColor = PALETTE.iconOrange; }
 
@@ -462,7 +483,8 @@ const DashboardScreen = () => {
               {match.categoryName && match.categoryName !== 'N/A' &&<View style={styles.matchDetailItem}><Text style={styles.matchDetailLabel}>Categoría: </Text><Text style={styles.matchDetailValue}>{match.categoryName}</Text></View>}
               {match.resultText && (<View style={styles.matchDetailItem}><Text style={styles.matchDetailLabel}>Resultado: </Text>{renderResultText(match)}</View>)}
               <View style={styles.matchDetailItem}><Text style={styles.matchDetailLabel}>Lugar: </Text><Text style={styles.matchDetailValue}>{match.complex}</Text></View>
-              {match.estado === 'Played' && !match.winningTeamId && match.isUserParticipant && (
+              {/* isUserParticipant siempre será true aquí */}
+              {match.estado === 'Played' && !match.winningTeamId && ( 
                 <TouchableOpacity style={[styles.actionButtonBase, styles.actionButtonRecordResult, {marginTop: 10}]} onPress={(e) => { e.stopPropagation(); navigateToRecordResultScreen(match.id); }}>
                   <Text style={styles.actionButtonText}>Registrar Resultado</Text>
                 </TouchableOpacity>

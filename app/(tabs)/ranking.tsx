@@ -6,8 +6,9 @@ import {
 } from 'react-native';
 // Asegúrate de importar PlayerStat, Category y Team si no lo hiciste ya en AuthContext
 import { useAuth, User, PlayerStat, Category, Team as TeamInterface } from '../../context/AuthContext';
+import SponsorBottom from '@/components/elementos/SponsorBottom';
 
-const STRAPI_BACKEND_URL = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://a1f3-200-127-6-159.ngrok-free.app';
+const STRAPI_BACKEND_URL = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://3c1c-200-127-6-159.ngrok-free.app';
 
 export interface RankingEntry {
   id: number | string;
@@ -234,6 +235,13 @@ const RankingScreen = () => {
         </View>
         {renderContent()}
         <Text style={styles.footerText}>El ranking se actualiza según los partidos registrados.</Text>
+        <SponsorBottom
+            imageHeight={35}
+            imageWidth={110}
+            backgroundColor="rgba(10,20,70,0.7)"
+            borderColor="#FFD700" // Un dorado, por ejemplo
+            title="Con el Apoyo de"
+          />
       </ScrollView>
     </SafeAreaView>
   );

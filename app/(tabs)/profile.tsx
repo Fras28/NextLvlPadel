@@ -7,6 +7,7 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { useAuth, User, Team } from '../../context/AuthContext'; // Importar Team si es necesario
+import SponsorBottom from '@/components/elementos/SponsorBottom';
 
 // --- Lógica de Categorías y Puntos (sin cambios) ---
 const categoryPointThresholds: Record<string, { start: number; next: number }> = {
@@ -74,19 +75,22 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
 
 const ProfileScreen = () => {
   const router = useRouter();
-  const { user, signOut, isLoading: authIsLoading, fetchAndUpdateUser } = useAuth();
+  const { user, isLoading: authIsLoading, fetchAndUpdateUser, signOut } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       let isActive = true;
-      if (fetchAndUpdateUser) { // No depender de 'user' aquí para evitar bucles
-        console.log("[ProfileScreen] Screen focused, calling fetchAndUpdateUser.");
+      if (fetchAndUpdateUser) {
+        console.log("[ProfileScreen] Screen focused, calling fetchAndUpdateUser if needed.");
+        // Podrías añadir una condición aquí para no llamar si user ya está completo
+        // if (!user || !user.player_stat || !user.category) {
         fetchAndUpdateUser().catch(err => {
             if (isActive) {
                 console.error("[ProfileScreen] Error in fetchAndUpdateUser on focus:", err.message);
             }
         });
+        // }
       }
       return () => {
         isActive = false;
@@ -112,39 +116,7 @@ const ProfileScreen = () => {
     catch (e) { console.error("Logout error:", e); Alert.alert("Error", "No se pudo cerrar sesión."); }
   };
 
-  const displayName = user?.name || user?.username || 'Usuario';
-  const displayEmail = user?.email || 'No disponible';
-  
-  const userCategoryPoints = user?.player_stat?.categoryPoints;
-  const userCategoryNameFromContext = user?.category?.name;
-  
-  let profilePictureUrl = null;
-  if (user?.profilePicture?.url) {
-    const strapiBaseUrl = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://a1f3-200-127-6-159.ngrok-free.app';
-    profilePictureUrl = `${strapiBaseUrl}${user.profilePicture.url}`;
-  }
-
-  const { progress, pointsToNext, categoryDisplayName, nextCategoryPoints } = 
-    getCurrentCategoryProgress(userCategoryPoints, userCategoryNameFromContext);
-
-  // Procesar equipos del usuario para mostrar, asegurando unicidad por documentId o id
-  const userTeamsUnique = user?.teams 
-    ? user.teams.reduce((acc, currentTeam) => {
-        const key = currentTeam.documentId || String(currentTeam.id); // Usa documentId si existe, sino id
-        if (!acc.some(item => (item.documentId || String(item.id)) === key)) {
-          acc.push(currentTeam);
-        }
-        return acc;
-      }, [] as Team[]) // Asegurar el tipo del acumulador importando Team de AuthContext
-    : [];
-
-  const userTeamsDisplay = userTeamsUnique.length > 0
-    ? userTeamsUnique.map(team => team.name || `Equipo ${team.id}`).join(', ')
-    : 'Sin equipos asignados';
-
-  const avatarSize = 100;
-  const progressStrokeWidth = 8;
-
+  // 1. Pantalla de carga si AuthContext está cargando y no hay objeto user aún
   if (authIsLoading && !user && !isRefreshing) {
     return (
       <SafeAreaView style={[styles.safeArea, styles.loadingContainer]}>
@@ -152,6 +124,8 @@ const ProfileScreen = () => {
       </SafeAreaView>
     );
   }
+
+  // 2. Si no hay usuario (después de que AuthContext haya terminado de cargar)
   if (!user) {
     return (
       <SafeAreaView style={[styles.safeArea, styles.loadingContainer]}>
@@ -162,6 +136,52 @@ const ProfileScreen = () => {
       </SafeAreaView>
     );
   }
+
+  // 3. NUEVO CHEQUEO: Si el objeto 'user' existe, pero le faltan datos detallados
+  //    (por ejemplo, player_stat o category, que son poblados por fetchAndUpdateUser)
+  //    Esto es común justo después del login/registro inicial.
+  if (!user.player_stat || !user.category) {
+    return (
+      <SafeAreaView style={[styles.safeArea, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#0284c7" />
+        <Text style={{ color: 'white', marginTop: 10, fontSize: 16 }}>Cargando detalles del perfil...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // Si hemos pasado todos los chequeos, 'user' y sus datos detallados están disponibles
+  const displayName = user.name || user.username || 'Usuario';
+  const displayEmail = user.email || 'No disponible';
+  
+  // Ahora es más seguro acceder a user.player_stat y user.category
+  const userCategoryPoints = user.player_stat.categoryPoints;
+  const userCategoryNameFromContext = user.category.name;
+  
+  let profilePictureUrl = null;
+  if (user.profilePicture?.url) {
+    const strapiBaseUrl = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://3c1c-200-127-6-159.ngrok-free.app';
+    profilePictureUrl = `${strapiBaseUrl}${user.profilePicture.url}`;
+  }
+
+  const { progress, pointsToNext, categoryDisplayName, nextCategoryPoints } = 
+    getCurrentCategoryProgress(userCategoryPoints, userCategoryNameFromContext);
+
+  const userTeamsUnique = user.teams 
+    ? user.teams.reduce((acc, currentTeam) => {
+        const key = currentTeam.documentId || String(currentTeam.id);
+        if (!acc.some(item => (item.documentId || String(item.id)) === key)) {
+          acc.push(currentTeam);
+        }
+        return acc;
+      }, [] as Team[])
+    : [];
+    
+  const userTeamsDisplay = userTeamsUnique.length > 0
+    ? userTeamsUnique.map(team => team.name || `Equipo ${team.id}`).join(', ')
+    : 'Sin equipos asignados';
+
+  const avatarSize = 100;
+  const progressStrokeWidth = 8;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -177,8 +197,8 @@ const ProfileScreen = () => {
             size={avatarSize + progressStrokeWidth * 2.5}
             strokeWidth={progressStrokeWidth}
             progressPercent={progress}
-            progressColor="#facc15"
-            backgroundColor="rgba(229, 231, 235, 0.5)"
+            progressColor="#facc15" // Amarillo para el progreso
+            backgroundColor="rgba(229, 231, 235, 0.5)" // Un gris claro semitransparente para el fondo
           >
             {profilePictureUrl ? (
               <Image source={{ uri: profilePictureUrl }} style={styles.avatarImage} />
@@ -202,9 +222,9 @@ const ProfileScreen = () => {
           <InfoRow label="Equipos" value={userTeamsDisplay} />
           <InfoRow label="Categoría Actual" value={categoryDisplayName} />
           <InfoRow label="Puntos Ranking" value={userCategoryPoints !== undefined && userCategoryPoints !== null ? String(userCategoryPoints) : 'N/A'} />
-          <InfoRow label="Partidos Jugados" value={String(user?.player_stat?.totalMatches || 0)} />
-          <InfoRow label="Partidos Ganados" value={String(user?.player_stat?.wins || 0)} />
-          <InfoRow label="Partidos Perdidos" value={String(user?.player_stat?.losses || 0)} />
+          <InfoRow label="Partidos Jugados" value={String(user.player_stat.totalMatches || 0)} />
+          <InfoRow label="Partidos Ganados" value={String(user.player_stat.wins || 0)} />
+          <InfoRow label="Partidos Perdidos" value={String(user.player_stat.losses || 0)} />
           <InfoRow label="Miembro Desde" value={user.createdAt ? new Date(user.createdAt).toLocaleDateString('es-ES') : 'N/A'} />
         </View>
 
@@ -215,6 +235,13 @@ const ProfileScreen = () => {
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
           <Text style={styles.logoutButtonText}>Cerrar Sesión</Text>
         </TouchableOpacity>
+          <SponsorBottom
+            imageHeight={35}
+            imageWidth={110}
+            backgroundColor="rgba(10,20,70,0.7)"
+            borderColor="#FFD700" 
+            title="Con el Apoyo de"
+          />
       </ScrollView>
     </SafeAreaView>
   );
@@ -227,48 +254,65 @@ const InfoRow = ({ label, value }: { label: string, value: string | number | und
   </View>
 );
 
-// Estilos (sin cambios, asegúrate de tenerlos como en tu archivo)
 const styles = StyleSheet.create({
-  safeArea: { flex: 1,  backgroundColor: '#142986', },
-  loadingContainer: { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', flex: 1 },
-  container: { flex: 1 },
+  safeArea: { flex: 1,  backgroundColor: '#142986', }, // Fondo azul oscuro para el SafeAreaView
+  loadingContainer: { 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: 'transparent', // O el mismo que safeArea si se prefiere
+    flex: 1 
+  },
+  container: { flex: 1 }, // El ScrollView tomará el espacio
   profileHeader: {
     backgroundColor: 'rgba(0,0,0,0.3)', 
     paddingVertical: 24, paddingHorizontal: 16, alignItems: 'center',
     marginBottom: 16,
+    // No necesita border radius si no hay un color de fondo que lo requiera visualmente contra el safeArea
   },
-  childrenContainer: { 
+  childrenContainer: { // Contenedor para el texto/imagen dentro del CircularProgress
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     justifyContent: 'center', alignItems: 'center',
   },
-  avatarPlaceholder: { backgroundColor: '#0284c7', justifyContent: 'center', alignItems: 'center' },
-  avatarImage: { width: 100, height: 100, borderRadius: 50 },
+  avatarPlaceholder: { 
+    backgroundColor: '#0284c7', // Azul más vibrante para el placeholder
+    justifyContent: 'center', alignItems: 'center' 
+    // El tamaño y borderRadius se aplican dinámicamente en el JSX
+  },
+  avatarImage: { width: 100, height: 100, borderRadius: 50 }, // Asegúrate que el tamaño coincida con 'avatarSize'
   avatarText: { color: 'white', fontSize: 48, fontWeight: 'bold' },
   userName: {
     fontSize: 24, fontWeight: 'bold', color: '#FFFFFF', marginTop: 16, 
     textShadowColor: 'rgba(0, 0, 0, 0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
   },
   userEmail: {
-    fontSize: 15, color: '#E5E5E5', marginBottom: 4, 
+    fontSize: 15, color: '#E5E5E5', marginBottom: 4, // Un gris claro para el email
     textShadowColor: 'rgba(0, 0, 0, 0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
   },
   pointsToNextText: {
-    fontSize: 13, color: '#F0F0F0', fontStyle: 'italic', marginTop: 6, 
+    fontSize: 13, color: '#F0F0F0', fontStyle: 'italic', marginTop: 6, // Un gris más claro para este texto informativo
     textShadowColor: 'rgba(0, 0, 0, 0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
   },
   infoSection: {
-    backgroundColor: 'rgba(255,255,255,0.9)', 
-    borderRadius: 10, marginHorizontal: 16, marginBottom: 16, overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.9)', // Fondo blanco semitransparente para la sección de información
+    borderRadius: 10, marginHorizontal: 16, marginBottom: 16, overflow: 'hidden', // Importante para que el borderBottom no exceda el borderRadius
   },
   infoRow: {
     flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 20,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(220, 220, 220, 0.7)', 
+    borderBottomWidth: 1, borderBottomColor: 'rgba(220, 220, 220, 0.7)', // Un color de borde más sutil
   },
-  infoLabel: { fontSize: 16, color: '#4B5563' }, 
-  infoValue: { fontSize: 16, color: '#1F2937', fontWeight: '600' }, 
-  editButton: { backgroundColor: '#0284c7', paddingVertical: 14, borderRadius: 8, marginHorizontal: 16, marginBottom: 12, alignItems: 'center', elevation: 2 }, 
+  infoLabel: { fontSize: 16, color: '#4B5563' }, // Gris oscuro para las etiquetas
+  infoValue: { fontSize: 16, color: '#1F2937', fontWeight: '600' }, // Negro/gris muy oscuro para los valores
+  editButton: { 
+    backgroundColor: '#0284c7', // Azul principal para el botón de editar
+    paddingVertical: 14, borderRadius: 8, marginHorizontal: 16, marginBottom: 12, 
+    alignItems: 'center', elevation: 2 
+  }, 
   editButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
-  logoutButton: { backgroundColor: '#DC2626', paddingVertical: 14, borderRadius: 8, marginHorizontal: 16, marginBottom: 24, alignItems: 'center', elevation: 2 }, 
+  logoutButton: { 
+    backgroundColor: '#DC2626', // Rojo para el botón de cerrar sesión
+    paddingVertical: 14, borderRadius: 8, marginHorizontal: 16, marginBottom: 24, 
+    alignItems: 'center', elevation: 2 
+  }, 
   logoutButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' }
 });
 

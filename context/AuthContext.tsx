@@ -137,7 +137,9 @@ interface AuthContextData {
   isLoading: boolean;
   signIn: (strapiUserObjectFromLogin: any, jwtToken: string) => Promise<void>;
   signOut: () => Promise<void>;
-  fetchAndUpdateUser: (currentToken?: string) => Promise<User | null>; // La firma se mantiene
+  fetchAndUpdateUser: (currentToken?: string) => Promise<User | null>;
+  initialRedirectPerformed: boolean; // <--- NUEVO ESTADO
+  setInitialRedirectPerformed: (status: boolean) => void; // <--- NUEVA FUNCIÓN
 }
 
 const AuthContext = createContext<AuthContextData | undefined>(undefined);
@@ -146,13 +148,13 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-const STRAPI_API_URL = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://a1f3-200-127-6-159.ngrok-free.app';
+const STRAPI_API_URL = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://3c1c-200-127-6-159.ngrok-free.app';
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
+  const [isLoading, setIsLoading] = useState(true); 
+  const [initialRedirectPerformed, setInitialRedirectPerformed] = useState(false);
   // Esta es la función interna, correctamente memoizada.
   // Los consumidores del contexto llamarán a esta directamente.
   // Si se llama sin argumento, usará el 'token' del estado de AuthProvider.
@@ -278,23 +280,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const publicSignOut = useCallback(async () => {
-    return signOutInternal();
-  }, []); // No tiene dependencias, signOutInternal no depende del scope de useCallback que cambie.
+  const publicSignOut = useCallback(async () => { // Esta es la que usan los componentes
+    await signOutInternal(); // signOutInternal ya resetea el flag
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ 
-        user, 
-        token, 
-        isLoading, 
-        signIn, 
-        signOut: publicSignOut, 
-        fetchAndUpdateUser: fetchAndUpdateUser// <-- Se pasa la referencia directa de la función memoizada
+    <AuthContext.Provider value={{
+        user,
+        token,
+        isLoading,
+        signIn,
+        signOut: publicSignOut,
+        fetchAndUpdateUser,
+        initialRedirectPerformed, // <--- PASAR AL CONTEXTO
+        setInitialRedirectPerformed // <--- PASAR AL CONTEXTO
     }}>
       {children}
     </AuthContext.Provider>
   );
 };
+
 
 export const useAuth = () => {
   const context = useContext(AuthContext);

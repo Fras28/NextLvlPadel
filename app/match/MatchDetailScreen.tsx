@@ -8,7 +8,7 @@ import { Stack, useLocalSearchParams, useRouter, useNavigation } from 'expo-rout
 import { useAuth } from '@/context/AuthContext'; // Ajusta la ruta si es necesario
 import { MaterialIcons } from '@expo/vector-icons';
 
-const STRAPI_API_URL = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://a1f3-200-127-6-159.ngrok-free.app';
+const STRAPI_API_URL = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://3c1c-200-127-6-159.ngrok-free.app';
 
 // --- Interfaces Corregidas basadas en tu API Log ---
 interface LoggedStrapiUser {

@@ -22,6 +22,7 @@ import {
   ImageBackground,
 } from "react-native";
 import { Link } from "expo-router";
+import SponsorBottom from "@/components/elementos/SponsorBottom";
 
 interface Player {
   id: string;
@@ -29,9 +30,9 @@ interface Player {
   image?: ImageSourcePropType;
 }
 const FIRST_CATEGORY_PLAYERS: Player[] = [
-  { id: "1", name: "Selvarolo" },
-  { id: "2", name: "Tanoni" },
-  { id: "3", name: "Caspanelo" },
+  { id: "1", name: "Caspanelo" },
+  { id: "2", name: "Selvarolo" },
+  { id: "3", name: "Tanoni" },
   { id: "4", name: "Padin" },
   { id: "5", name: "Schmidt" },
   { id: "6", name: "Figueroa" },
@@ -46,40 +47,7 @@ interface Sponsor {
   image: ImageSourcePropType;
   name?: string;
 }
-const SPONSOR_LOGOS: Sponsor[] = [
-  {
-    id: "sponsor1",
-    image: require("../../assets/images/VairoSponsor.png"),
-    name: "Sponsor 1",
-  },
-  {
-    id: "sponsor2",
-    image: require("../../assets/images/3M.png"),
-    name: "Sponsor 2",
-  },
-  {
-    id: "sponsor3",
-    image: require("../../assets/images/HeadLogo.png"),
-    name: "Sponsor 3",
-  },
-  {
-    id: "sponsor4",
-    image: require("../../assets/images/AsicsLogo.png"),
-    name: "Sponsor 4",
-  },
-  {
-    id: "sponsor5",
-    image: require("../../assets/images/PumaLogo.png"),
-    name: "Sponsor 5",
-  },
-  {
-    id: "sponsor6",
-    image: require("../../assets/images/Joma.png"),
-    name: "Sponsor 6",
-  },
-];
-const SPONSOR_IMAGE_HEIGHT = 30;
-const SPONSOR_IMAGE_WIDTH = 100;
+
 
 const LogoPlaceholder = () => (
   <View>
@@ -246,32 +214,6 @@ interface SponsorGridProps {
   imageHeight?: number;
   imageWidth?: number;
 }
-const SponsorGrid: React.FC<SponsorGridProps> = ({
-  sponsors,
-  imageHeight = SPONSOR_IMAGE_HEIGHT,
-  imageWidth = SPONSOR_IMAGE_WIDTH,
-}) => {
-  if (!sponsors || sponsors.length === 0) {
-    return null;
-  }
-  const sponsorImageStyle = {
-    height: imageHeight,
-    width: imageWidth,
-    resizeMode: "contain" as "contain",
-    margin: 5,
-  };
-  return (
-    <View style={styles.sponsorGridContainer}>
-      {" "}
-      {sponsors.map((sponsor: Sponsor) => (
-        <View key={sponsor.id} style={styles.sponsorGridItem}>
-          {" "}
-          <Image source={sponsor.image} style={sponsorImageStyle} />{" "}
-        </View>
-      ))}{" "}
-    </View>
-  );
-};
 
 const WelcomeScreen = () => {
   return (
@@ -306,10 +248,14 @@ const WelcomeScreen = () => {
               <Text style={styles.buttonTextLogin}>Iniciar Sesión</Text>
             </TouchableOpacity>
           </Link>
+        <SponsorBottom
+            imageHeight={35}
+            imageWidth={110}
+            backgroundColor="rgba(10,20,70,0.7)"
+            title="Con el Apoyo de"
+          />
           <Text style={styles.versionText}>Versión MVP 0.1</Text>
         </View>
-
-        <SponsorGrid sponsors={SPONSOR_LOGOS} />
       </ImageBackground>
     </SafeAreaView>
   );
@@ -319,7 +265,7 @@ const styles = StyleSheet.create({
   safeAreaOuter: { flex: 1 },
   backgroundImageContainer: {
     flex: 1,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 10,
   },
   carouselOuterContainer: {
     height: 60,
@@ -357,6 +303,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     position: "absolute",
+
   },
   sponsorGridContainer: {
     flexDirection: "row",

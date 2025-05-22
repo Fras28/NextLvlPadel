@@ -7,146 +7,13 @@ import {
 } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+import SponsorBottom from '@/components/elementos/SponsorBottom';
 
-const STRAPI_BACKEND_URL = 'https://a1f3-200-127-6-159.ngrok-free.app';
+const STRAPI_BACKEND_URL = 'https://3c1c-200-127-6-159.ngrok-free.app';
 
 const FLUORESCENT_YELLOW = '#DFFF00';
 
-interface Sponsor {
-  id: string;
-  image: ImageSourcePropType;
-  name?: string;
-}
-
-const SPONSOR_LOGOS: Sponsor[] = [
-  { id: 'sponsor1', image: require('../../assets/images/VairoSponsor.png'), name: 'Sponsor 1' },
-  { id: 'sponsor2', image: require('../../assets/images/3M.png'), name: 'Sponsor 2' },
-  { id: 'sponsor3', image: require('../../assets/images/HeadLogo.png'), name: 'Sponsor 3' },
-  { id: 'sponsor4', image: require('../../assets/images/AsicsLogo.png'), name: 'Sponsor 4' },
-  { id: 'sponsor5', image: require('../../assets/images/PumaLogo.png'), name: 'Sponsor 5' },
-  { id: 'sponsor6', image: require('../../assets/images/Joma.png'), name: 'Sponsor 6' },
-  { id: 'sponsor7', image: require('../../assets/images/RedBull.png'), name: 'Sponsor 7' },
-];
-
-const SPONSOR_IMAGE_HEIGHT = 40;
-const SPONSOR_IMAGE_WIDTH = 100;
-const SPONSOR_IMAGE_MARGIN_HORIZONTAL = 10;
-
-interface SponsorImageMarqueeProps {
-  sponsors: Sponsor[];
-  speed?: number;
-  imageHeight?: number;
-  imageWidth?: number;
-  imageMarginHorizontal?: number;
-}
-
 // Componente SponsorImageMarquee (definido localmente)
-const SponsorImageMarquee: React.FC<SponsorImageMarqueeProps> = ({
-  sponsors,
-  speed = 40,
-  imageHeight = SPONSOR_IMAGE_HEIGHT,
-  imageWidth = SPONSOR_IMAGE_WIDTH,
-  imageMarginHorizontal = SPONSOR_IMAGE_MARGIN_HORIZONTAL,
-}) => {
-  const animatedValue = useRef(new Animated.Value(0)).current;
-  const [actualContentWidth, setActualContentWidth] = useState(0);
-  const [isMeasured, setIsMeasured] = useState(false);
-  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
-  const isMountedRef = useRef(true);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      animationRef.current?.stop();
-    };
-  }, []);
-
-  const itemsToMeasure = sponsors;
-  // Solo duplicar para la animación si ya se midió y hay ancho, para evitar trabajo innecesario.
-  const itemsToAnimate = isMeasured && actualContentWidth > 0 ? [...sponsors, ...sponsors] : [];
-
-  useEffect(() => {
-    animationRef.current?.stop();
-    // Solo iniciar animación si está medido, hay ancho y hay ítems para animar.
-    if (isMeasured && actualContentWidth > 0 && itemsToAnimate.length > 0) {
-      animatedValue.setValue(0);
-      const duration = (actualContentWidth / speed) * 1000;
-      animationRef.current = Animated.loop(
-        Animated.timing(animatedValue, {
-          toValue: -actualContentWidth,
-          duration: duration,
-          easing: Easing.linear,
-          useNativeDriver: false,
-        })
-      );
-      animationRef.current.start();
-    }
-    return () => {
-      animationRef.current?.stop();
-    };
-  }, [isMeasured, actualContentWidth, speed, animatedValue, itemsToAnimate]); // itemsToAnimate es una dependencia clave aquí
-
-  const handleLayoutMeasure = (event: { nativeEvent: { layout: { width: number } } }) => {
-    if (!isMountedRef.current || isMeasured) return;
-    const measuredWidth = event.nativeEvent.layout.width;
-    if (measuredWidth > 0) {
-      setActualContentWidth(measuredWidth);
-      setIsMeasured(true);
-    }
-  };
-  
-  useEffect(() => {
-    const handleAppStateChange = (nextAppState: string) => {
-      if (!isMountedRef.current || !animationRef.current) return;
-      if (nextAppState === 'active' && isMeasured && actualContentWidth > 0) {
-        animationRef.current.start();
-      } else {
-        animationRef.current.stop();
-      }
-    };
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => subscription.remove();
-  }, [isMeasured, actualContentWidth, animatedValue]);
-
-  // Correcto: si no hay patrocinadores, devuelve null, no una cadena de texto.
-  if (!sponsors || sponsors.length === 0) return null;
-
-  const sponsorImageStyle = {
-    height: imageHeight,
-    width: imageWidth,
-    marginHorizontal: imageMarginHorizontal,
-    resizeMode: 'contain' as 'contain',
-  };
-
-  return (
-    <View style={styles.sponsorCarouselOuterContainer}> 
-      {/* Contenedor para medir, se mantiene invisible */}
-      {!isMeasured && (
-        <View style={styles.measureContainer} onLayout={handleLayoutMeasure}>
-          {itemsToMeasure.map((sponsor) => (
-            // Renderiza componentes Image, no texto directo.
-            <Image key={`measure-sponsor-${sponsor.id}`} source={sponsor.image} style={sponsorImageStyle} />
-          ))}
-        </View>
-      )}
-      {/* Contenedor animado, visible después de medir y si hay contenido */}
-      {isMeasured && actualContentWidth > 0 && itemsToAnimate.length > 0 && (
-        <Animated.View style={[styles.marqueeContainer, { transform: [{ translateX: animatedValue }] }]}>
-          {itemsToAnimate.map((sponsor, index) => (
-            // Renderiza componentes Image, no texto directo.
-            <Image key={`marquee-sponsor-${sponsor.id}-${index}`} source={sponsor.image} style={sponsorImageStyle} />
-          ))}
-        </Animated.View>
-      )}
-      {/* Texto de error envuelto correctamente en <Text> */}
-      {/* Mostrar error solo si se midió, el ancho es 0, pero había items para medir (evita mostrar error si no hay sponsors) */}
-      {isMeasured && actualContentWidth === 0 && itemsToMeasure.length > 0 && (
-        <Text style={styles.errorText}>Error al medir sponsors.</Text>
-      )}
-    </View>
-  );
-};
 
 // Componente principal LoginScreen
 const LoginScreen = () => {
@@ -273,10 +140,14 @@ const LoginScreen = () => {
                 </Text>
               </TouchableOpacity>
             </Link>
+      <SponsorBottom
+            imageHeight={35}
+            imageWidth={110}
+            backgroundColor="rgba(10,20,70,0.7)"
+            title="Con el Apoyo de"
+          />
           </View>
         </View>
-        
-        <SponsorImageMarquee sponsors={SPONSOR_LOGOS} speed={50} />
       </View>
     </SafeAreaView>
   );
@@ -372,14 +243,6 @@ const styles = StyleSheet.create({
     color: '#0284c7',
     fontWeight: '500',
     padding: 8, // Aumenta el área táctil
-  },
-  sponsorCarouselOuterContainer: {
-    height: SPONSOR_IMAGE_HEIGHT + 20,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    borderTopWidth: 2,
-    borderTopColor: FLUORESCENT_YELLOW,
-    overflow: 'hidden',
   },
   measureContainer: {
     flexDirection: 'row',

@@ -4,38 +4,42 @@ import {
   View, Text, StyleSheet, ScrollView, SafeAreaView, TextInput,
   TouchableOpacity, Alert, Platform, ActivityIndicator
 } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useAuth } from '@/context/AuthContext'; // Ajusta la ruta si es necesario
+import { Stack, useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
+import { useAuth } from '@/context/AuthContext';
 
-const STRAPI_API_URL = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://a1f3-200-127-6-159.ngrok-free.app';
+const STRAPI_API_URL = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://3c1c-200-127-6-159.ngrok-free.app';
 
+// --- Interfaces para RecordResultScreen ---
 interface StrapiUserSimple {
   id: number;
 }
-interface StrapiTeamSimple {
+
+interface StrapiTeamSimplePopulated { // Renombrado para claridad
   id: number;
-  name: string; // Direct property
-  users_permissions_users?: { // Direct property
+  name: string;
+  users_permissions_users?: { // Relación para identificar a los jugadores del equipo
     data: StrapiUserSimple[];
   };
 }
-interface StrapiMatchAttributesResults {
-  team_1?: { data?: StrapiTeamSimple };
-  team_2?: { data?: StrapiTeamSimple };
-  scheduledDate?: string;
-  complex?: string;
+
+// Interfaz para los datos del partido como se esperan de /api/matches/:id (estructura aplanada)
+interface SingleMatchDataForResults {
+  id: string; // ID numérico del partido
+  team_1?: { data?: StrapiTeamSimplePopulated | null }; // Directamente aquí, populado
+  team_2?: { data?: StrapiTeamSimplePopulated | null }; // Directamente aquí, populado
+  scheduledDate?: string | null;
+  complex?: string | null;
+  // Otros campos que la API pueda devolver en este nivel y que puedas necesitar
 }
-interface FetchedMatchForResults {
-  id: string;
-  attributes: StrapiMatchAttributesResults;
-}
+
 interface MatchDisplayDetailsForResults {
-  id: string;
+  id: string; // ID numérico del partido (para el PUT)
   team1Name: string;
   team2Name: string;
   date?: string;
   complex?: string;
 }
+
 interface SetScorePayload {
   team1Score: number;
   team2Score: number;
@@ -45,8 +49,9 @@ interface SetScorePayload {
 const RecordResultScreen = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { matchId } = params;
+  const { matchId } = params; // Este es el ID numérico del partido
   const { token, user } = useAuth();
+  const navigation = useNavigation();
 
   const [matchDetails, setMatchDetails] = useState<MatchDisplayDetailsForResults | null>(null);
   const [userTeamNumber, setUserTeamNumber] = useState<1 | 2 | null>(null);
@@ -62,28 +67,55 @@ const RecordResultScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (matchDetails) {
+      navigation.setOptions({ title: `Resultado: ${matchDetails.team1Name} vs ${matchDetails.team2Name}` });
+    } else if (!isLoading) {
+      navigation.setOptions({ title: 'Registrar Resultado' });
+    }
+  }, [matchDetails, navigation, isLoading]);
+
   const fetchMatchDataForResultsAPI = useCallback(async () => {
-    if (!matchId) { setError("Match ID is missing."); return; }
+    if (!matchId || typeof matchId !== 'string') { // matchId aquí es el ID numérico
+      setError("ID del partido es inválido o falta."); 
+      setIsLoading(false); 
+      return; 
+    }
     if (!token) { setError("Autenticación requerida."); setIsLoading(false); return; }
 
     setIsLoading(true); setError(null);
+    console.log(`[RecordResultScreen] Fetching match details for numeric ID: ${matchId}`);
     try {
       const populateQuery = 'populate[team_1][populate][users_permissions_users][fields][0]=id&populate[team_2][populate][users_permissions_users][fields][0]=id&populate=team_1.name&populate=team_2.name';
-      const response = await fetch(`${STRAPI_API_URL}/api/matches/${matchId}?${populateQuery}`, {
+      const apiUrl = `${STRAPI_API_URL}/api/matches/${matchId}?${populateQuery}`; // Usa el ID numérico
+      console.log(`[RecordResultScreen] Fetch URL: ${apiUrl}`);
+      
+      const response = await fetch(apiUrl, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error?.message || `Failed to fetch match (${response.status})`);
-      }
-      const result: { data: FetchedMatchForResults } = await response.json();
-      const fetchedStrapiData = result.data;
 
-      let identifiedTeam: 1 | 2 | null = null;
-      const team1Strapi = fetchedStrapiData.attributes.team_1?.data; // This is StrapiTeamSimple | undefined
-      const team2Strapi = fetchedStrapiData.attributes.team_2?.data; // This is StrapiTeamSimple | undefined
+      const responseBodyText = await response.text();
+
+      if (!response.ok) {
+        let errData;
+        try { errData = JSON.parse(responseBodyText); }
+        catch(e) { throw new Error(`Error en la respuesta (status ${response.status}): ${responseBodyText.substring(0,150)}`); }
+        console.error("[RecordResultScreen] API Error Data:", errData);
+        throw new Error(errData.error?.message || `Error al obtener el partido (${response.status})`);
+      }
+
+      const result: { data: SingleMatchDataForResults } = JSON.parse(responseBodyText);
+      console.log("[RecordResultScreen] Raw result.data from API:", JSON.stringify(result.data, null, 2));
+      const fetchedStrapiMatchData = result.data;
+
+      if (!fetchedStrapiMatchData) {
+        throw new Error("Los datos del partido recibidos no son válidos o están vacíos.");
+      }
+
+      const team1Strapi = fetchedStrapiMatchData.team_1?.data;
+      const team2Strapi = fetchedStrapiMatchData.team_2?.data;
       
-      // CORRECTED ACCESS: No .attributes on team1Strapi or team2Strapi here
+      let identifiedTeam: 1 | 2 | null = null;
       if (user && team1Strapi?.users_permissions_users?.data) {
         if (team1Strapi.users_permissions_users.data.some((player: StrapiUserSimple) => player.id === user.id)) {
           identifiedTeam = 1;
@@ -95,20 +127,19 @@ const RecordResultScreen = () => {
         }
       }
       setUserTeamNumber(identifiedTeam);
-      console.log('[RecordResultScreen] User identified as part of Team:', identifiedTeam);
+      console.log('[RecordResultScreen] Usuario identificado como parte del Equipo:', identifiedTeam);
 
       const displayDetails: MatchDisplayDetailsForResults = {
-        id: fetchedStrapiData.id,
-        // CORRECTED ACCESS: No .attributes on team1Strapi or team2Strapi here
+        id: fetchedStrapiMatchData.id, // El ID numérico que se usará para el PUT
         team1Name: team1Strapi?.name || 'Equipo 1',
         team2Name: team2Strapi?.name || 'Equipo 2',
-        date: fetchedStrapiData.attributes.scheduledDate ? new Date(fetchedStrapiData.attributes.scheduledDate).toLocaleDateString('es-AR') : 'N/A',
-        complex: fetchedStrapiData.attributes.complex || 'N/A',
+        date: fetchedStrapiMatchData.scheduledDate ? new Date(fetchedStrapiMatchData.scheduledDate).toLocaleDateString('es-AR') : 'N/A',
+        complex: fetchedStrapiMatchData.complex || 'N/A',
       };
       setMatchDetails(displayDetails);
 
     } catch (e: any) {
-      setError(e.message); console.error("[RecordResultScreen] Error fetching match details:", e);
+      setError(e.message); console.error("[RecordResultScreen] Error detallado al obtener datos del partido:", e);
     } finally {
       setIsLoading(false);
     }
@@ -123,6 +154,11 @@ const RecordResultScreen = () => {
         Alert.alert("Error", "No se pudo identificar tu equipo en este partido. No se puede registrar el resultado.");
         return;
     }
+    if (!matchDetails) { // Añadir esta verificación
+        Alert.alert("Error", "No hay detalles del partido cargados para enviar el resultado.");
+        return;
+    }
+
     const scoresRaw = [
         { s1: team1Set1, s2: team2Set1, num: 1 }, { s1: team1Set2, s2: team2Set2, num: 2 }, { s1: team1Set3, s2: team2Set3, num: 3 },
     ];
@@ -132,40 +168,48 @@ const RecordResultScreen = () => {
     for (const set of scoresRaw) {
         const sc1 = parseInt(set.s1); const sc2 = parseInt(set.s2);
         if (!isNaN(sc1) && !isNaN(sc2) && set.s1.trim() !== '' && set.s2.trim() !== '') {
+          // Validación de scores (ej: no más de 7, a menos que sea tie-break, diferencia de 2, etc.)
+          // Aquí puedes añadir lógica más compleja si es necesario.
+          // Por ahora, se aceptan números genéricos.
           setsPayload.push({ team1Score: sc1, team2Score: sc2, setNumber: set.num });
           resultStringParts.push(`${sc1}-${sc2}`);
         } else if (set.s1.trim() !== '' || set.s2.trim() !== '') {
-            Alert.alert(`Error Set ${set.num}`, `Completa ambos scores o déjalos vacíos.`); return;
+            Alert.alert(`Error Set ${set.num}`, `Completa ambos scores para el Set ${set.num} o déjalos vacíos si no se jugó.`); return;
         }
     }
-    if (setsPayload.length === 0) { Alert.alert('Incompleto', 'Ingresa al menos el primer set.'); return; }
-    if (!confirmResult) { Alert.alert('Confirmación', 'Confirma que el resultado es correcto.'); return; }
+    if (setsPayload.length === 0) { Alert.alert('Resultado Incompleto', 'Debes ingresar al menos el resultado del primer set.'); return; }
+    if (!confirmResult) { Alert.alert('Confirmación Requerida', 'Por favor, marca la casilla para confirmar que el resultado ingresado es correcto.'); return; }
 
     setIsLoading(true); setError(null);
     const finalResultString = resultStringParts.join(', ');
     const payload: any = { data: { sets: setsPayload } };
 
+    // Asumiendo que los campos en tu Strapi son confirmationTeam1 y resultTeam1Confirmed (y equivalentes para team 2)
     if (userTeamNumber === 1) {
         payload.data.resultTeam1Confirmed = finalResultString;
         payload.data.confirmationTeam1 = true;
-    } else if (userTeamNumber === 2) { // No need for an else here, userTeamNumber must be 1 or 2
+    } else if (userTeamNumber === 2) {
         payload.data.resultTeam2Confirmed = finalResultString;
         payload.data.confirmationTeam2 = true;
     }
-    // No 'else' needed here, as the check for !userTeamNumber is at the beginning of the function.
-
+    
     console.log('[RecordResultScreen] Enviando resultado:', JSON.stringify(payload, null, 2));
     try {
-        const response = await fetch(`${STRAPI_API_URL}/api/matches/${matchId}`, {
+        // Se usa matchDetails.id (el ID numérico del partido) para la URL del PUT
+        const putUrl = `${STRAPI_API_URL}/api/matches/${matchDetails.id}`;
+        console.log(`[RecordResultScreen] URL para PUT: ${putUrl}`);
+
+        const response = await fetch(putUrl, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`},
             body: JSON.stringify(payload),
         });
         if (!response.ok) {
             const errData = await response.json();
-            throw new Error(errData.error?.message || `Error al enviar (${response.status})`);
+            console.error("[RecordResultScreen] Error response from Strapi (PUT):", errData);
+            throw new Error(errData.error?.message || `Error al enviar el resultado (${response.status})`);
         }
-        Alert.alert('Resultado Registrado', `Resultado: ${finalResultString}\nEnviado para confirmación.`,
+        Alert.alert('Resultado Registrado', `Tu resultado (${finalResultString}) ha sido enviado.`,
             [{ text: 'OK', onPress: () => { if(router.canGoBack()) router.back(); } }]
         );
     } catch (e: any) {
@@ -195,33 +239,43 @@ const RecordResultScreen = () => {
 
   if (isLoading && !matchDetails) { 
     return (
-      <SafeAreaView style={styles.safeArea}><Stack.Screen options={{ title: 'Registrar Resultado' }} />
+      <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#0ea5e9" /><Text style={styles.loadingText}>Cargando...</Text></View>
       </SafeAreaView>
     );
   }
-   if (error && !matchDetails) {
+   if (error && !matchDetails) { // Si hay error y aún no se cargaron detalles
      return (
-      <SafeAreaView style={styles.safeArea}><Stack.Screen options={{ title: 'Error' }} />
-        <View style={styles.loadingContainer}><Text style={styles.errorText}>Error: {error}</Text><TouchableOpacity onPress={() => router.back()} style={styles.backButton}><Text style={styles.backButtonText}>Volver</Text></TouchableOpacity></View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+            <Text style={styles.errorText}>Error al cargar el partido: {error}</Text>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <Text style={styles.backButtonText}>Volver</Text>
+            </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
-  if (!matchDetails) {
+  if (!matchDetails) { // Si no está cargando, no hay error, pero no hay detalles
     return (
-      <SafeAreaView style={styles.safeArea}><Stack.Screen options={{ title: 'Registrar Resultado' }} />
-        <View style={styles.loadingContainer}><Text style={styles.loadingText}>Partido no encontrado.</Text><TouchableOpacity onPress={() => router.back()} style={styles.backButton}><Text style={styles.backButtonText}>Volver</Text></TouchableOpacity></View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Partido no encontrado o ID inválido.</Text>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <Text style={styles.backButtonText}>Volver</Text>
+            </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen options={{ title: 'Registrar Resultado' }} />
+      {/* El título se actualiza mediante navigation.setOptions en useEffect */}
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.headerTitle}>Registrar Resultado del Partido</Text>
-        {error && <Text style={styles.inlineErrorText}>{error}</Text>}
-        {!userTeamNumber && !isLoading && (<Text style={styles.inlineWarningText}>No se pudo identificar tu equipo en este partido. Aún puedes ver los detalles.</Text>)}
+        {error && !isLoading && <Text style={styles.inlineErrorText}>{error}</Text>} {/* Error durante una acción */}
+        {!userTeamNumber && !isLoading && (<Text style={styles.inlineWarningText}>No estás asignado a un equipo en este partido. No podrás registrar el resultado.</Text>)}
 
         <View style={styles.matchInfoCard}>
           <Text style={styles.matchDetailTextBold}>Partido:</Text>
@@ -237,7 +291,7 @@ const RecordResultScreen = () => {
           {renderSetInputs(1)}
           {renderSetInputs(2)}
           {renderSetInputs(3)}
-          <Text style={styles.infoText}>Dejar en blanco el Set 3 si no se jugó.</Text>
+          <Text style={styles.infoText}>Deja en blanco los scores del Set 3 si no se jugó.</Text>
         </View>
 
         <View style={styles.confirmationContainer}>
@@ -271,10 +325,10 @@ const styles = StyleSheet.create({
   backButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold', },
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#2c3e50', textAlign: 'center', marginBottom: 20, },
   matchInfoCard: { backgroundColor: 'white', borderRadius: 10, padding: 16, marginBottom: 24, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, alignItems:'center' },
-  matchDetailText: { fontSize: 15, color: '#495057', marginBottom: 6, },
-  matchDetailTextBold: { fontSize: 16, color: '#343a40', marginBottom: 8, fontWeight:'bold' },
-  teamNameLabel: { fontSize: 17, fontWeight: '600', color: '#007bff', marginTop: 4, marginBottom:4, },
-  vsText: { fontSize: 15, fontWeight: 'bold', color: '#343a40', marginVertical: 4, },
+  matchDetailText: { fontSize: 15, color: '#495057', marginBottom: 6, textAlign: 'center', },
+  matchDetailTextBold: { fontSize: 16, color: '#343a40', marginBottom: 8, fontWeight:'bold', textAlign: 'center', },
+  teamNameLabel: { fontSize: 17, fontWeight: '600', color: '#007bff', marginTop: 4, marginBottom:4, textAlign: 'center', },
+  vsText: { fontSize: 15, fontWeight: 'bold', color: '#343a40', marginVertical: 4, textAlign: 'center', },
   scoreEntryCard: { backgroundColor: 'white', borderRadius: 10, padding: 20, marginBottom: 24, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, },
   sectionTitle: { fontSize: 20, fontWeight: 'bold', color: '#343a40', marginBottom: 18, borderBottomWidth:1, borderBottomColor:'#e9ecef', paddingBottom:8 },
   setRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 18, justifyContent:'center' },

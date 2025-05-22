@@ -1,4 +1,5 @@
 // app/(tabs)/rules.tsx (o la ruta que prefieras para tu nueva pantalla)
+import SponsorBottom from '@/components/elementos/SponsorBottom';
 import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, Platform, ScrollView } from 'react-native';
 
@@ -72,6 +73,13 @@ const RulesScreen = () => {
             Esta información está basada en el sistema de la Liga de Pádel Bahiense. Para detalles más específicos o actualizaciones, consulta los comunicados oficiales en la app.
           </Text>
         </View>
+        <SponsorBottom
+            imageHeight={35}
+            imageWidth={110}
+            backgroundColor="rgba(10,20,70,0.7)"
+            borderColor="#FFD700" // Un dorado, por ejemplo
+            title="Con el Apoyo de"
+          />
       </ScrollView>
     </SafeAreaView>
   );
