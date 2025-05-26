@@ -159,7 +159,7 @@ const ProfileScreen = () => {
   
   let profilePictureUrl = null;
   if (user.profilePicture?.url) {
-    const strapiBaseUrl = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://3c1c-200-127-6-159.ngrok-free.app';
+    const strapiBaseUrl = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://04dc-200-127-6-159.ngrok-free.app';
     profilePictureUrl = `${strapiBaseUrl}${user.profilePicture.url}`;
   }
 

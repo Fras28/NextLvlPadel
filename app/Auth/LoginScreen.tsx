@@ -10,7 +10,7 @@ import { Link, useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import SponsorBottom from '@/components/elementos/SponsorBottom';
 
-const STRAPI_BACKEND_URL = 'https://3c1c-200-127-6-159.ngrok-free.app'; // Asegúrate que esta sea tu URL correcta
+const STRAPI_BACKEND_URL = 'https://04dc-200-127-6-159.ngrok-free.app'; // Asegúrate que esta sea tu URL correcta
 
 const LoginScreen = () => {
   const router = useRouter();

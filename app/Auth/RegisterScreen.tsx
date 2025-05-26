@@ -20,7 +20,7 @@ import { useAuth } from "../../context/AuthContext"; // <-- IMPORTA useAuth
 import SponsorBottom from "@/components/elementos/SponsorBottom";
 
 // Asegúrate que esta URL sea correcta y accesible desde tu dispositivo/emulador
-const STRAPI_BACKEND_URL = "https://3c1c-200-127-6-159.ngrok-free.app";
+const STRAPI_BACKEND_URL = "https://04dc-200-127-6-159.ngrok-free.app";
 
 const RegisterScreen = () => {
   const router = useRouter();

@@ -148,7 +148,7 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-const STRAPI_API_URL = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://3c1c-200-127-6-159.ngrok-free.app';
+const STRAPI_API_URL = process.env.EXPO_PUBLIC_STRAPI_URL || 'https://04dc-200-127-6-159.ngrok-free.app';
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
